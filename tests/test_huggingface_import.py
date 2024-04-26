@@ -5,8 +5,8 @@ Ensure that we can load huggingface/transformer GPTs into minGPT
 import unittest
 import torch
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
-from mingpt.model import GPT
-from mingpt.bpe import BPETokenizer
+from tinygpt.model import GPT
+from tinygpt.bpe import BPETokenizer
 # -----------------------------------------------------------------------------
 
 class TestHuggingFaceImport(unittest.TestCase):
