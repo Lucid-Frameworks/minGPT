@@ -46,11 +46,11 @@ class CausalSelfAttention:#(nn.Module):
         # output projection
         self.c_proj = nn.Linear(config.n_embd, config.n_embd)
         # regularization
-        self.attn_dropout = nn.Dropout(config.attn_pdrop)
-        self.resid_dropout = nn.Dropout(config.resid_pdrop)
+        # self.attn_dropout = nn.Dropout(config.attn_pdrop)
+        # self.resid_dropout = nn.Dropout(config.resid_pdrop)
         # causal mask to ensure that attention is only applied to the left in the input sequence
-        self.register_buffer("bias", Tensor.ones(config.block_size, config.block_size).tril()
-                                     .view(1, 1, config.block_size, config.block_size))
+        # self.register_buffer("bias", Tensor.ones(config.block_size, config.block_size).tril()
+        #                              .view(1, 1, config.block_size, config.block_size))
         self.n_head = config.n_head
         self.n_embd = config.n_embd
 
@@ -84,14 +84,15 @@ class Block:#(nn.Module):
         self.ln_1 = nn.LayerNorm(config.n_embd)
         self.attn = CausalSelfAttention(config)
         self.ln_2 = nn.LayerNorm(config.n_embd)
-        self.mlp = nn.ModuleDict(dict(
+        # What could go wrong now that I replace a ModuleDict with a dict
+        self.mlp = dict(
             c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd),
             c_proj  = nn.Linear(4 * config.n_embd, config.n_embd),
             act     = NewGELU(),
-            dropout = nn.Dropout(config.resid_pdrop),
-        ))
+            # dropout = nn.Dropout(config.resid_pdrop),
+        )
         m = self.mlp
-        self.mlpf = lambda x: m.dropout(m.c_proj(m.act(m.c_fc(x)))) # MLP forward
+        self.mlpf = lambda x: m.c_proj(m.act(m.c_fc(x))).dropout(config.resid.pdrop) # MLP forward
 
     def __call__(self, x):
         x = x + self.attn(self.ln_1(x))
@@ -147,13 +148,15 @@ class GPT:#(nn.Module):
                 'gpt-nano':     dict(n_layer=3, n_head=3, n_embd=48),
             }[config.model_type])
 
-        self.transformer = nn.ModuleDict(dict(
+        self.transformer = dict(
             wte = nn.Embedding(config.vocab_size, config.n_embd),
             wpe = nn.Embedding(config.block_size, config.n_embd),
-            drop = nn.Dropout(config.embd_pdrop),
-            h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+            # drop = nn.Dropout(config.embd_pdrop), # in Tinygrad dropout is a function not a Layer.
+            # h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+            # Again, what could go wrong now that I replace a ModuleList with a list
+            h = [Block(config) for _ in range(config.n_layer)],
             ln_f = nn.LayerNorm(config.n_embd),
-        ))
+        )
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
         # init all weights, and apply a special scaled init to the residual projections, per GPT-2 paper
