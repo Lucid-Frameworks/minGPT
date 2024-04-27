@@ -6,10 +6,11 @@ import os
 import sys
 import json
 
-import torch
-from torch.utils.data import Dataset
-from tinygpt.tinyloader import DataLoader
+import tinygrad
+# import torch
+# from torch.utils.data import Dataset
 
+from tinygpt.tinyloader import DataLoader
 from tinygpt.model import GPT
 from tinygpt.trainer import Trainer
 from tinygpt.utils import set_seed, setup_logging, CfgNode as CN
@@ -147,7 +148,8 @@ if __name__ == '__main__':
         ndigit = config.data.ndigit
         results = []
         mistakes_printed_already = 0
-        factors = torch.tensor([[10**i for i in range(ndigit+1)][::-1]]).to(trainer.device)
+        # factors = torch.tensor([[10**i for i in range(ndigit+1)][::-1]]).to(trainer.device)
+        factors = tinygrad.tensor.Tensor([[10**i for i in range(ndigit+1)][::-1]]).to(trainer.device)
         loader = DataLoader(dataset, batch_size=100, num_workers=0, drop_last=False)
         for b, (x, y) in enumerate(loader):
             x = x.to(trainer.device)

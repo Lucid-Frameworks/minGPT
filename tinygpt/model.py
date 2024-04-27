@@ -14,13 +14,29 @@ import math
 # import torch.nn as nn
 from torch.nn.functional import cross_entropy
 import tinygrad
-from tinygrad import Tensor
+from tinygrad.tensor import Tensor
 import tinygrad.nn as nn
 
 from tinygpt import tinyutils
 from tinygpt.utils import CfgNode as CN
 
 # -----------------------------------------------------------------------------
+
+# def init_w(layer):
+#     if isinstance(module, nn.Linear):
+#         # torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+#         module.weight = Tensor.normal(mean=0.0, std=0.02, shape=module.weight.shape)
+#         if module.bias is not None:
+#             # torch.nn.init.zeros_(module.bias)
+#             module.bias = Tensor.zeros(module.bias.shape)
+#     elif isinstance(module, nn.Embedding):
+#         # torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+#         module.weight = Tensor.normal(mean=0.0, std=0.02, shape=module.weight.shape)
+#     elif isinstance(module, nn.LayerNorm):
+#         # torch.nn.init.zeros_(module.bias)
+#         module.bias = Tensor.zeros(module.bias.shape)
+#         # torch.nn.init.ones_(module.weight)
+#         module.weight = Tensor.ones(module.weight.shape)
 
 class NewGELU:#(nn.Module):
     """
@@ -160,76 +176,77 @@ class GPT:#(nn.Module):
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
         # init all weights, and apply a special scaled init to the residual projections, per GPT-2 paper
-        self.apply(self._init_weights)
-        for pn, p in self.named_parameters():
-            if pn.endswith('c_proj.weight'):
-                # torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
-                p = Tensor.normal(mean=0.0, std=0.02/math.sqrt(2 * config.n_layer), shape=p.shape)
+        # self.apply(self._init_weights)
+        # for pn, p in self.named_parameters():
+        #     if pn.endswith('c_proj.weight'):
+        #         # torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
+        #         p = Tensor.normal(mean=0.0, std=0.02/math.sqrt(2 * config.n_layer), shape=p.shape)
 
         # report number of parameters (note we don't count the decoder parameters in lm_head)
-        n_params = sum(p.numel() for p in self.transformer.parameters())
-        print("number of parameters: %.2fM" % (n_params/1e6,))
+        # TODO: bring this back
+        # n_params = sum(p.numel() for p in self.transformer.parameters())
+        # print("number of parameters: %.2fM" % (n_params/1e6,))
 
-    def _init_weights(self, module):
-        if isinstance(module, nn.Linear):
-            # torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
-            module.weight = Tensor.normal(mean=0.0, std=0.02, shape=module.weight.shape)
-            if module.bias is not None:
-                # torch.nn.init.zeros_(module.bias)
-                module.bias = Tensor.zeros(module.bias.shape)
-        elif isinstance(module, nn.Embedding):
-            # torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
-            module.weight = Tensor.normal(mean=0.0, std=0.02, shape=module.weight.shape)
-        elif isinstance(module, nn.LayerNorm):
-            # torch.nn.init.zeros_(module.bias)
-            module.bias = Tensor.zeros(module.bias.shape)
-            # torch.nn.init.ones_(module.weight)
-            module.weight = Tensor.ones(module.weight.shape)
+    # def _init_weights(self, module):
+    #     if isinstance(module, nn.Linear):
+    #         # torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+    #         module.weight = Tensor.normal(mean=0.0, std=0.02, shape=module.weight.shape)
+    #         if module.bias is not None:
+    #             # torch.nn.init.zeros_(module.bias)
+    #             module.bias = Tensor.zeros(module.bias.shape)
+    #     elif isinstance(module, nn.Embedding):
+    #         # torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+    #         module.weight = Tensor.normal(mean=0.0, std=0.02, shape=module.weight.shape)
+    #     elif isinstance(module, nn.LayerNorm):
+    #         # torch.nn.init.zeros_(module.bias)
+    #         module.bias = Tensor.zeros(module.bias.shape)
+    #         # torch.nn.init.ones_(module.weight)
+    #         module.weight = Tensor.ones(module.weight.shape)
 
-    @classmethod
-    def from_pretrained(cls, model_type):
-        """
-        Initialize a pretrained GPT model by copying over the weights
-        from a huggingface/transformers checkpoint.
-        """
-        assert model_type in {'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'}
-        from transformers import GPT2LMHeadModel
+    # @classmethod
+    # def from_pretrained(cls, model_type):
+    #     """
+    #     Initialize a pretrained GPT model by copying over the weights
+    #     from a huggingface/transformers checkpoint.
+    #     """
+    #     assert model_type in {'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'}
+    #     from transformers import GPT2LMHeadModel
 
-        # create a from-scratch initialized minGPT model
-        config = cls.get_default_config()
-        config.model_type = model_type
-        config.vocab_size = 50257 # openai's model vocabulary
-        config.block_size = 1024  # openai's model block_size
-        model = GPT(config)
-        sd = model.state_dict()
+    #     # create a from-scratch initialized minGPT model
+    #     config = cls.get_default_config()
+    #     config.model_type = model_type
+    #     config.vocab_size = 50257 # openai's model vocabulary
+    #     config.block_size = 1024  # openai's model block_size
+    #     model = GPT(config)
+    #     sd = model.state_dict()
 
-        # init a huggingface/transformers model
-        model_hf = GPT2LMHeadModel.from_pretrained(model_type)
-        sd_hf = model_hf.state_dict()
+    #     # init a huggingface/transformers model
+    #     model_hf = GPT2LMHeadModel.from_pretrained(model_type)
+    #     sd_hf = model_hf.state_dict()
 
-        # copy while ensuring all of the parameters are aligned and match in names and shapes
-        keys = [k for k in sd_hf if not k.endswith('attn.masked_bias')] # ignore these
-        transposed = ['attn.c_attn.weight', 'attn.c_proj.weight', 'mlp.c_fc.weight', 'mlp.c_proj.weight']
-        # basically the openai checkpoints use a "Conv1D" module, but we only want to use a vanilla nn.Linear.
-        # this means that we have to transpose these weights when we import them
-        assert len(keys) == len(sd)
-        for k in keys:
-            if any(k.endswith(w) for w in transposed):
-                # special treatment for the Conv1D weights we need to transpose
-                assert sd_hf[k].shape[::-1] == sd[k].shape
-                # with torch.no_grad():
-                Tensor.no_grad = True
-                sd[k].copy_(sd_hf[k].t())
-                Tensor.no_grad = False
-            else:
-                # vanilla copy over the other parameters
-                assert sd_hf[k].shape == sd[k].shape
-                # with torch.no_grad():
-                Tensor.no_grad = True
-                sd[k].copy_(sd_hf[k])
-                Tensor.no_grad = False
+    #     # copy while ensuring all of the parameters are aligned and match in names and shapes
+    #     keys = [k for k in sd_hf if not k.endswith('attn.masked_bias')] # ignore these
+    #     transposed = ['attn.c_attn.weight', 'attn.c_proj.weight', 'mlp.c_fc.weight', 'mlp.c_proj.weight']
+    #     # basically the openai checkpoints use a "Conv1D" module, but we only want to use a vanilla nn.Linear.
+    #     # this means that we have to transpose these weights when we import them
+    #     assert len(keys) == len(sd)
+    #     for k in keys:
+    #         if any(k.endswith(w) for w in transposed):
+    #             # special treatment for the Conv1D weights we need to transpose
+    #             assert sd_hf[k].shape[::-1] == sd[k].shape
+    #             # with torch.no_grad():
+    #             Tensor.no_grad = True
+    #             sd[k].copy_(sd_hf[k].t())
+    #             Tensor.no_grad = False
+    #         else:
+    #             # vanilla copy over the other parameters
+    #             assert sd_hf[k].shape == sd[k].shape
+    #             # with torch.no_grad():
+    #             Tensor.no_grad = True
+    #             sd[k].copy_(sd_hf[k])
+    #             Tensor.no_grad = False
 
-        return model
+    #     return model
 
     def configure_optimizers(self, train_config):
         """
@@ -244,36 +261,38 @@ class GPT:#(nn.Module):
         no_decay = set()
         whitelist_weight_modules = (tinygrad.nn.Linear, )
         blacklist_weight_modules = (tinygrad.nn.LayerNorm, tinygrad.nn.Embedding)
-        for mn, m in self.named_modules():
-            for pn, p in m.named_parameters():
-                fpn = '%s.%s' % (mn, pn) if mn else pn # full param name
-                # random note: because named_modules and named_parameters are recursive
-                # we will see the same tensors p many many times. but doing it this way
-                # allows us to know which parent module any tensor p belongs to...
-                if pn.endswith('bias'):
-                    # all biases will not be decayed
-                    no_decay.add(fpn)
-                elif pn.endswith('weight') and isinstance(m, whitelist_weight_modules):
-                    # weights of whitelist modules will be weight decayed
-                    decay.add(fpn)
-                elif pn.endswith('weight') and isinstance(m, blacklist_weight_modules):
-                    # weights of blacklist modules will NOT be weight decayed
-                    no_decay.add(fpn)
+        # TODO: what this?
+        # for mn, m in self.named_modules():
+        #     for pn, p in m.named_parameters():
+        #         fpn = '%s.%s' % (mn, pn) if mn else pn # full param name
+        #         # random note: because named_modules and named_parameters are recursive
+        #         # we will see the same tensors p many many times. but doing it this way
+        #         # allows us to know which parent module any tensor p belongs to...
+        #         if pn.endswith('bias'):
+        #             # all biases will not be decayed
+        #             no_decay.add(fpn)
+        #         elif pn.endswith('weight') and isinstance(m, whitelist_weight_modules):
+        #             # weights of whitelist modules will be weight decayed
+        #             decay.add(fpn)
+        #         elif pn.endswith('weight') and isinstance(m, blacklist_weight_modules):
+        #             # weights of blacklist modules will NOT be weight decayed
+        #             no_decay.add(fpn)
 
         # validate that we considered every parameter
-        param_dict = {pn: p for pn, p in self.named_parameters()}
-        inter_params = decay & no_decay
-        union_params = decay | no_decay
-        assert len(inter_params) == 0, "parameters %s made it into both decay/no_decay sets!" % (str(inter_params), )
-        assert len(param_dict.keys() - union_params) == 0, "parameters %s were not separated into either decay/no_decay set!" \
-                                                    % (str(param_dict.keys() - union_params), )
+        # param_dict = {pn: p for pn, p in self.named_parameters()}
+        # inter_params = decay & no_decay
+        # union_params = decay | no_decay
+        # assert len(inter_params) == 0, "parameters %s made it into both decay/no_decay sets!" % (str(inter_params), )
+        # assert len(param_dict.keys() - union_params) == 0, "parameters %s were not separated into either decay/no_decay set!" \
+        #                                             % (str(param_dict.keys() - union_params), )
 
         # create the pytorch optimizer object
-        optim_groups = [
-            {"params": [param_dict[pn] for pn in sorted(list(decay))], "weight_decay": train_config.weight_decay},
-            {"params": [param_dict[pn] for pn in sorted(list(no_decay))], "weight_decay": 0.0},
-        ]
-        optimizer = tinygrad.nn.optim.AdamW(optim_groups, lr=train_config.learning_rate, betas=train_config.betas)
+        # optim_groups = [
+        #     {"params": [param_dict[pn] for pn in sorted(list(decay))], "weight_decay": train_config.weight_decay},
+        #     {"params": [param_dict[pn] for pn in sorted(list(no_decay))], "weight_decay": 0.0},
+        # ]
+        params = tinygrad.nn.state.get_parameters(self)
+        optimizer = tinygrad.nn.optim.AdamW(params, lr=train_config.learning_rate, b1=train_config.betas[0], b2=train_config.betas[1])
         return optimizer
 
     def __call__(self, idx, targets=None):

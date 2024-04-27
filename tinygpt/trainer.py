@@ -7,7 +7,7 @@ import time
 from collections import defaultdict
 
 # import torch
-# import tinygrad
+import tinygrad
 from tinygpt import tinyloader
 from tinygpt import tinyutils
 from tinygpt.utils import CfgNode as CN
@@ -44,8 +44,8 @@ class Trainer:
             config.device = 'cpu'
         else:
             self.device = config.device
-        self.model = self.model.to(self.device)
-        print("running on device", self.device)
+        # self.model = self.model.to(self.device)
+        # print("running on device", self.device)
 
         # variables that will be assigned to trainer class later for logging and etc
         self.iter_num = 0
@@ -78,36 +78,37 @@ class Trainer:
             num_workers=config.num_workers,
         )
 
-        model.train()
-        self.iter_num = 0
-        self.iter_time = time.time()
-        data_iter = iter(train_loader)
-        while True:
+        # model.train()
+        with tinygrad.tensor.Tensor.train():
+            self.iter_num = 0
+            self.iter_time = time.time()
+            data_iter = iter(train_loader)
+            while True:
 
-            # fetch the next batch (x, y) and re-init iterator if needed
-            try:
-                batch = next(data_iter)
-            except StopIteration:
-                data_iter = iter(train_loader)
-                batch = next(data_iter)
-            batch = [t.to(self.device) for t in batch]
-            x, y = batch
+                # fetch the next batch (x, y) and re-init iterator if needed
+                try:
+                    batch = next(data_iter)
+                except StopIteration:
+                    data_iter = iter(train_loader)
+                    batch = next(data_iter)
+                # batch = [t.to(self.device) for t in batch]
+                x, y = batch
 
-            # forward the model
-            logits, self.loss = model(x, y)
+                # forward the model
+                logits, self.loss = model(x, y)
 
-            # backprop and update the parameters
-            model.zero_grad(set_to_none=True)
-            self.loss.backward()
-            tinyutils.clip_grad_norm_(model.parameters(), config.grad_norm_clip)
-            self.optimizer.step()
+                # backprop and update the parameters
+                model.zero_grad(set_to_none=True)
+                self.loss.backward()
+                tinyutils.clip_grad_norm_(model.parameters(), config.grad_norm_clip)
+                self.optimizer.step()
 
-            self.trigger_callbacks('on_batch_end')
-            self.iter_num += 1
-            tnow = time.time()
-            self.iter_dt = tnow - self.iter_time
-            self.iter_time = tnow
+                self.trigger_callbacks('on_batch_end')
+                self.iter_num += 1
+                tnow = time.time()
+                self.iter_dt = tnow - self.iter_time
+                self.iter_time = tnow
 
-            # termination conditions
-            if config.max_iters is not None and self.iter_num >= config.max_iters:
-                break
+                # termination conditions
+                if config.max_iters is not None and self.iter_num >= config.max_iters:
+                    break
