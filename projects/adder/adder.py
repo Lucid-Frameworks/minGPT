@@ -8,7 +8,7 @@ import json
 
 import torch
 from torch.utils.data import Dataset
-from torch.utils.data.dataloader import DataLoader
+from tinygpt.tinyloader import DataLoader
 
 from tinygpt.model import GPT
 from tinygpt.trainer import Trainer
