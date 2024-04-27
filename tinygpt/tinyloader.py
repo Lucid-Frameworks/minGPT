@@ -33,16 +33,16 @@ class DataLoader(torch.utils.data.DataLoader):
             drop_last=drop_last,
         ) # Not all params are passeed. We'll see.
 
-class RandomSampler(torch.utils.data.RandomSampler):
-    def __init__(self, data_source, replacement=False, num_samples=None):
-        """ Torch RandomSampler signature:
+    class RandomSampler(torch.utils.data.RandomSampler):
+        def __init__(self, data_source, replacement=False, num_samples=None):
+            """ Torch RandomSampler signature:
 
-        RandomSampler(data_source, replacement=False, num_samples=None)
+            RandomSampler(data_source, replacement=False, num_samples=None)
 
-        https://pytorch.org/docs/stable/data.html
-        """
-        super().__init__(
-            data_source=data_source,
-            replacement=replacement,
-            num_samples=num_samples,
-        )
+            https://pytorch.org/docs/stable/data.html
+            """
+            super().__init__(
+                data_source=data_source,
+                replacement=replacement,
+                num_samples=num_samples,
+            )

@@ -152,11 +152,12 @@ if __name__ == '__main__':
         ndigit = config.data.ndigit
         results = []
         mistakes_printed_already = 0
-        factors = torch.tensor([[10**i for i in range(ndigit+1)][::-1]]).to(trainer.device)
-        # factors = tinygrad.tensor.Tensor([[10**i for i in range(ndigit+1)][::-1]]).to(trainer.device)
+        tmp_device = 'cpu'
+        factors = torch.tensor([[10**i for i in range(ndigit+1)][::-1]]).to(tmp_device)
+        # factors = tinygrad.tensor.Tensor([[10**i for i in range(ndigit+1)][::-1]]).to(tmp_device)
         loader = DataLoader(dataset, batch_size=100, num_workers=0, drop_last=False)
         for b, (x, y) in enumerate(loader):
-            x = x.to(trainer.device)
+            x = x.to(tmp_device)
             # isolate the first two digits of the input sequence alone
             d1d2 = x[:, :ndigit*2]
             # let the model sample the rest of the sequence

@@ -6,9 +6,8 @@ so nothing in this file really has anything to do with GPT specifically.
 import time
 from collections import defaultdict
 
-# import torch
 import tinygrad
-from tinygpt import tinyloader
+from tinygpt.tinyloader import DataLoader
 from tinygpt import tinyutils
 from tinygpt.utils import CfgNode as CN
 
@@ -17,8 +16,6 @@ class Trainer:
     @staticmethod
     def get_default_config():
         C = CN()
-        # device to train on
-        C.device = 'auto'
         # dataloder parameters
         C.num_workers = 4
         # optimizer parameters
@@ -36,16 +33,6 @@ class Trainer:
         self.optimizer = None
         self.train_dataset = train_dataset
         self.callbacks = defaultdict(list)
-
-        # determine the device we'll train on
-        if config.device == 'auto':
-            # self.device = 'cuda' if torc.cuda.is_available() else 'cpu'
-            # we will deal with cuda later
-            config.device = 'cpu'
-        else:
-            self.device = config.device
-        # self.model = self.model.to(self.device)
-        # print("running on device", self.device)
 
         # variables that will be assigned to trainer class later for logging and etc
         self.iter_num = 0
@@ -69,9 +56,9 @@ class Trainer:
         self.optimizer = model.configure_optimizers(config)
 
         # setup the dataloader
-        train_loader = tinyloader.DataLoader(
+        train_loader = DataLoader(
             self.train_dataset,
-            sampler=tinyloader.RandomSampler(self.train_dataset, replacement=True, num_samples=int(1e10)),
+            sampler=DataLoader.RandomSampler(self.train_dataset, replacement=True, num_samples=int(1e10)),
             shuffle=False,
             pin_memory=True,
             batch_size=config.batch_size,
@@ -79,55 +66,41 @@ class Trainer:
         )
 
         # model.train()
-        with tinygrad.tensor.Tensor.train():
-            self.iter_num = 0
-            self.iter_time = time.time()
-            data_iter = iter(train_loader)
-            while True:
+        t = tinygrad.tensor.Tensor.train()
+        t.__enter__()
+        self.iter_num = 0
+        self.iter_time = time.time()
+        data_iter = iter(train_loader)
+        while True:
 
-                # fetch the next batch (x, y) and re-init iterator if needed
-                try:
-                    batch = next(data_iter)
-                except StopIteration:
-                    data_iter = iter(train_loader)
-                    batch = next(data_iter)
-                # batch = [t.to(self.device) for t in batch]
-                # print(batch)
-                # print(type(batch))
-                # print(batch.shape)
-                x, y = batch
-                # print(x)
-                # print(type(x))
-                # print(x.shape)
-                x = tinygrad.tensor.Tensor(x.numpy())
-                y = tinygrad.tensor.Tensor(y.numpy())
+            # fetch the next batch (x, y) and re-init iterator if needed
+            try:
+                batch = next(data_iter)
+            except StopIteration:
+                data_iter = iter(train_loader)
+                batch = next(data_iter)
+            x, y = batch
+            x = tinygrad.tensor.Tensor(x.numpy())
+            y = tinygrad.tensor.Tensor(y.numpy())
 
-                btime = time.time()
-                # forward the model
-                logits, self.loss = model(x, y)
-                print(f'debug 1, time: {time.time() - btime}')
-                btime = time.time()
-                # print(logits.numpy())
+            # forward the model
+            logits, self.loss = model(x, y)
 
-                # backprop and update the parameters
-                # model.zero_grad(set_to_none=True)
-                self.optimizer.zero_grad()
-                self.loss.backward()
-                print(f'debug 2, time: {time.time() - btime}')
-                btime = time.time()
-                # params = tinygrad.nn.state.get_parameters(model)
-                # tinyutils.clip_grad_norm_(params, config.grad_norm_clip)
-                self.optimizer.step()
-                print(f'debug 3, time: {time.time() - btime}')
-                btime = time.time()
+            # backprop and update the parameters
+            # model.zero_grad(set_to_none=True)
+            self.optimizer.zero_grad()
+            self.loss.backward()
+            # params = tinygrad.nn.state.get_parameters(model)
+            # tinyutils.clip_grad_norm_(params, config.grad_norm_clip)
+            self.optimizer.step()
 
-                self.trigger_callbacks('on_batch_end')
-                self.iter_num += 1
-                tnow = time.time()
-                self.iter_dt = tnow - self.iter_time
-                self.iter_time = tnow
+            self.trigger_callbacks('on_batch_end')
+            self.iter_num += 1
+            tnow = time.time()
+            self.iter_dt = tnow - self.iter_time
+            self.iter_time = tnow
 
-                # termination conditions
-                # if config.max_iters is not None and self.iter_num >= config.max_iters:
-                if self.iter_num >= 10:
-                    break
+            # termination conditions
+            if config.max_iters is not None and self.iter_num >= config.max_iters:
+                break
+        t.__exit__()

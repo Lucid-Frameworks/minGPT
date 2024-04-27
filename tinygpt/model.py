@@ -10,9 +10,6 @@ https://github.com/huggingface/transformers/blob/main/src/transformers/models/gp
 
 import math
 
-# import torch
-# import torch.nn as nn
-from torch.nn.functional import cross_entropy
 import tinygrad
 from tinygrad.tensor import Tensor
 import tinygrad.nn as nn
@@ -38,16 +35,15 @@ from tinygpt.utils import CfgNode as CN
 #         # torch.nn.init.ones_(module.weight)
 #         module.weight = Tensor.ones(module.weight.shape)
 
-class NewGELU:#(nn.Module):
+class NewGELU:
     """
     Implementation of the GELU activation function currently in Google BERT repo (identical to OpenAI GPT).
     Reference: Gaussian Error Linear Units (GELU) paper: https://arxiv.org/abs/1606.08415
     """
     def __call__(self, x):
-        # return 0.5 * x * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (x + 0.044715 * torch.pow(x, 3.0))))
         return 0.5 * x * (1.0 + (math.sqrt(2.0 / math.pi) * (x + 0.044715 * x.pow(3.0))).tanh())
 
-class CausalSelfAttention:#(nn.Module):
+class CausalSelfAttention:
     """
     A vanilla multi-head masked self-attention layer with a projection at the end.
     It is possible to use torch.nn.MultiheadAttention here but I am including an
@@ -68,17 +64,15 @@ class CausalSelfAttention:#(nn.Module):
         # self.register_buffer("bias", Tensor.ones(config.block_size, config.block_size).tril()
         #                              .view(1, 1, config.block_size, config.block_size))
         self.bias = Tensor.ones(config.block_size, config.block_size).tril().view(1, 1, config.block_size, config.block_size)
-        # print(self.bias.shape)
         self.n_head = config.n_head
         self.n_embd = config.n_embd
 
-    # def forward(self, x):
     def __call__(self, x):
+        # TODO: it's suspected tha softmax and the bias are the no-grad tensors
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
         q, k ,v  = self.c_attn(x).split(self.n_embd, dim=2)
-        # print(q.shape, k.shape, v.shape)    
         k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
@@ -95,7 +89,7 @@ class CausalSelfAttention:#(nn.Module):
         # y = self.resid_dropout(self.c_proj(y))
         return y
 
-class Block:#(nn.Module):
+class Block:
     """ an unassuming Transformer block """
 
     def __init__(self, config):
@@ -118,7 +112,7 @@ class Block:#(nn.Module):
         x = x + self.mlpf(self.ln_2(x))
         return x
 
-class GPT:#(nn.Module):
+class GPT:
     """ GPT Language Model """
 
     @staticmethod
@@ -189,22 +183,6 @@ class GPT:#(nn.Module):
         # TODO: bring this back
         # n_params = sum(p.numel() for p in self.transformer.parameters())
         # print("number of parameters: %.2fM" % (n_params/1e6,))
-
-    # def _init_weights(self, module):
-    #     if isinstance(module, nn.Linear):
-    #         # torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
-    #         module.weight = Tensor.normal(mean=0.0, std=0.02, shape=module.weight.shape)
-    #         if module.bias is not None:
-    #             # torch.nn.init.zeros_(module.bias)
-    #             module.bias = Tensor.zeros(module.bias.shape)
-    #     elif isinstance(module, nn.Embedding):
-    #         # torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
-    #         module.weight = Tensor.normal(mean=0.0, std=0.02, shape=module.weight.shape)
-    #     elif isinstance(module, nn.LayerNorm):
-    #         # torch.nn.init.zeros_(module.bias)
-    #         module.bias = Tensor.zeros(module.bias.shape)
-    #         # torch.nn.init.ones_(module.weight)
-    #         module.weight = Tensor.ones(module.weight.shape)
 
     # @classmethod
     # def from_pretrained(cls, model_type):
@@ -299,10 +277,9 @@ class GPT:#(nn.Module):
         return optimizer
 
     def __call__(self, idx, targets=None):
-        device = idx.device
         b, t = idx.size()
         assert t <= self.block_size, f"Cannot forward sequence of length {t}, block size is only {self.block_size}"
-        pos = Tensor.arange(0, t, dtype=tinygrad.dtypes.long, device=device).unsqueeze(0) # shape (1, t)
+        pos = Tensor.arange(0, t, dtype=tinygrad.dtypes.long).unsqueeze(0) # shape (1, t)
 
         # forward the GPT model itself
         tok_emb = self.transformer['wte'](idx) # token embeddings of shape (b, t, n_embd)
