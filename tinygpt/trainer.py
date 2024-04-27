@@ -7,7 +7,7 @@ import time
 from collections import defaultdict
 
 import torch
-from torch.utils.data.dataloader import DataLoader
+from tinygpt.tinyloader import DataLoader
 from tinygpt.utils import CfgNode as CN
 
 class Trainer:
