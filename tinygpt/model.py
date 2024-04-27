@@ -10,23 +10,28 @@ https://github.com/huggingface/transformers/blob/main/src/transformers/models/gp
 
 import math
 
-import torch
-import torch.nn as nn
-from torch.nn import functional as F
+# import torch
+# import torch.nn as nn
+from torch.nn.functional import cross_entropy
+import tinygrad
+from tinygrad import Tensor
+import tinygrad.nn as nn
 
+from tinygpt import tinyutils
 from tinygpt.utils import CfgNode as CN
 
 # -----------------------------------------------------------------------------
 
-class NewGELU(nn.Module):
+class NewGELU:#(nn.Module):
     """
     Implementation of the GELU activation function currently in Google BERT repo (identical to OpenAI GPT).
     Reference: Gaussian Error Linear Units (GELU) paper: https://arxiv.org/abs/1606.08415
     """
-    def forward(self, x):
-        return 0.5 * x * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (x + 0.044715 * torch.pow(x, 3.0))))
+    def __call__(self, x):
+        # return 0.5 * x * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (x + 0.044715 * torch.pow(x, 3.0))))
+        return 0.5 * x * (1.0 + (math.sqrt(2.0 / math.pi) * (x + 0.044715 * x.pow(3.0))).tanh())
 
-class CausalSelfAttention(nn.Module):
+class CausalSelfAttention:#(nn.Module):
     """
     A vanilla multi-head masked self-attention layer with a projection at the end.
     It is possible to use torch.nn.MultiheadAttention here but I am including an
@@ -44,12 +49,13 @@ class CausalSelfAttention(nn.Module):
         self.attn_dropout = nn.Dropout(config.attn_pdrop)
         self.resid_dropout = nn.Dropout(config.resid_pdrop)
         # causal mask to ensure that attention is only applied to the left in the input sequence
-        self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
+        self.register_buffer("bias", Tensor.ones(config.block_size, config.block_size).tril()
                                      .view(1, 1, config.block_size, config.block_size))
         self.n_head = config.n_head
         self.n_embd = config.n_embd
 
-    def forward(self, x):
+    # def forward(self, x):
+    def __call__(self, x):
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
@@ -61,7 +67,7 @@ class CausalSelfAttention(nn.Module):
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
-        att = F.softmax(att, dim=-1)
+        att = att.softmax(axis=-1) # att = F.softmax(att, dim=-1)
         att = self.attn_dropout(att)
         y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
@@ -70,7 +76,7 @@ class CausalSelfAttention(nn.Module):
         y = self.resid_dropout(self.c_proj(y))
         return y
 
-class Block(nn.Module):
+class Block:#(nn.Module):
     """ an unassuming Transformer block """
 
     def __init__(self, config):
@@ -87,12 +93,12 @@ class Block(nn.Module):
         m = self.mlp
         self.mlpf = lambda x: m.dropout(m.c_proj(m.act(m.c_fc(x)))) # MLP forward
 
-    def forward(self, x):
+    def __call__(self, x):
         x = x + self.attn(self.ln_1(x))
         x = x + self.mlpf(self.ln_2(x))
         return x
 
-class GPT(nn.Module):
+class GPT:#(nn.Module):
     """ GPT Language Model """
 
     @staticmethod
@@ -154,7 +160,8 @@ class GPT(nn.Module):
         self.apply(self._init_weights)
         for pn, p in self.named_parameters():
             if pn.endswith('c_proj.weight'):
-                torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
+                # torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
+                p = Tensor.normal(mean=0.0, std=0.02/math.sqrt(2 * config.n_layer), shape=p.shape)
 
         # report number of parameters (note we don't count the decoder parameters in lm_head)
         n_params = sum(p.numel() for p in self.transformer.parameters())
@@ -162,14 +169,19 @@ class GPT(nn.Module):
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            # torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            module.weight = Tensor.normal(mean=0.0, std=0.02, shape=module.weight.shape)
             if module.bias is not None:
-                torch.nn.init.zeros_(module.bias)
+                # torch.nn.init.zeros_(module.bias)
+                module.bias = Tensor.zeros(module.bias.shape)
         elif isinstance(module, nn.Embedding):
-            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            # torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+            module.weight = Tensor.normal(mean=0.0, std=0.02, shape=module.weight.shape)
         elif isinstance(module, nn.LayerNorm):
-            torch.nn.init.zeros_(module.bias)
-            torch.nn.init.ones_(module.weight)
+            # torch.nn.init.zeros_(module.bias)
+            module.bias = Tensor.zeros(module.bias.shape)
+            # torch.nn.init.ones_(module.weight)
+            module.weight = Tensor.ones(module.weight.shape)
 
     @classmethod
     def from_pretrained(cls, model_type):
@@ -202,13 +214,17 @@ class GPT(nn.Module):
             if any(k.endswith(w) for w in transposed):
                 # special treatment for the Conv1D weights we need to transpose
                 assert sd_hf[k].shape[::-1] == sd[k].shape
-                with torch.no_grad():
-                    sd[k].copy_(sd_hf[k].t())
+                # with torch.no_grad():
+                Tensor.no_grad = True
+                sd[k].copy_(sd_hf[k].t())
+                Tensor.no_grad = False
             else:
                 # vanilla copy over the other parameters
                 assert sd_hf[k].shape == sd[k].shape
-                with torch.no_grad():
-                    sd[k].copy_(sd_hf[k])
+                # with torch.no_grad():
+                Tensor.no_grad = True
+                sd[k].copy_(sd_hf[k])
+                Tensor.no_grad = False
 
         return model
 
@@ -223,8 +239,8 @@ class GPT(nn.Module):
         # separate out all parameters to those that will and won't experience regularizing weight decay
         decay = set()
         no_decay = set()
-        whitelist_weight_modules = (torch.nn.Linear, )
-        blacklist_weight_modules = (torch.nn.LayerNorm, torch.nn.Embedding)
+        whitelist_weight_modules = (tinygrad.nn.Linear, )
+        blacklist_weight_modules = (tinygrad.nn.LayerNorm, tinygrad.nn.Embedding)
         for mn, m in self.named_modules():
             for pn, p in m.named_parameters():
                 fpn = '%s.%s' % (mn, pn) if mn else pn # full param name
@@ -254,14 +270,14 @@ class GPT(nn.Module):
             {"params": [param_dict[pn] for pn in sorted(list(decay))], "weight_decay": train_config.weight_decay},
             {"params": [param_dict[pn] for pn in sorted(list(no_decay))], "weight_decay": 0.0},
         ]
-        optimizer = torch.optim.AdamW(optim_groups, lr=train_config.learning_rate, betas=train_config.betas)
+        optimizer = tinygrad.nn.optim.AdamW(optim_groups, lr=train_config.learning_rate, betas=train_config.betas)
         return optimizer
 
-    def forward(self, idx, targets=None):
+    def __call__(self, idx, targets=None):
         device = idx.device
         b, t = idx.size()
         assert t <= self.block_size, f"Cannot forward sequence of length {t}, block size is only {self.block_size}"
-        pos = torch.arange(0, t, dtype=torch.long, device=device).unsqueeze(0) # shape (1, t)
+        pos = Tensor.arange(0, t, dtype=tinygrad.dtypes.long, device=device).unsqueeze(0) # shape (1, t)
 
         # forward the GPT model itself
         tok_emb = self.transformer.wte(idx) # token embeddings of shape (b, t, n_embd)
@@ -275,17 +291,19 @@ class GPT(nn.Module):
         # if we are given some desired targets also calculate the loss
         loss = None
         if targets is not None:
-            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+            # TODO: this should be implemented in tinygrad
+            loss = cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
 
         return logits, loss
 
-    @torch.no_grad()
+    # @torch.no_grad()
     def generate(self, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k=None):
         """
         Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
         the sequence max_new_tokens times, feeding the predictions back into the model each time.
         Most likely you'll want to make sure to be in model.eval() mode of operation for this.
         """
+        Tensor.no_grad = True
         for _ in range(max_new_tokens):
             # if the sequence context is growing too long we must crop it at block_size
             idx_cond = idx if idx.size(1) <= self.block_size else idx[:, -self.block_size:]
@@ -295,16 +313,18 @@ class GPT(nn.Module):
             logits = logits[:, -1, :] / temperature
             # optionally crop the logits to only the top k options
             if top_k is not None:
-                v, _ = torch.topk(logits, top_k)
+                v, _ = tinyutils.topk(logits, top_k)
                 logits[logits < v[:, [-1]]] = -float('Inf')
             # apply softmax to convert logits to (normalized) probabilities
-            probs = F.softmax(logits, dim=-1)
+            probs = logits.softmax(axis=-1)
             # either sample from the distribution or take the most likely element
             if do_sample:
-                idx_next = torch.multinomial(probs, num_samples=1)
+                idx_next = Tensor.multinomial(probs, num_samples=1)
             else:
-                _, idx_next = torch.topk(probs, k=1, dim=-1)
+                _, idx_next = tinyutils.topk(probs, k=1, dim=-1)
             # append sampled index to the running sequence and continue
-            idx = torch.cat((idx, idx_next), dim=1)
+            idx = Tensor.cat((idx, idx_next), dim=1)
+
+        Tensor.no_grad = False
 
         return idx

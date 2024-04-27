@@ -6,8 +6,10 @@ so nothing in this file really has anything to do with GPT specifically.
 import time
 from collections import defaultdict
 
-import torch
-from tinygpt.tinyloader import DataLoader
+# import torch
+# import tinygrad
+from tinygpt import tinyloader
+from tinygpt import tinyutils
 from tinygpt.utils import CfgNode as CN
 
 class Trainer:
@@ -37,7 +39,9 @@ class Trainer:
 
         # determine the device we'll train on
         if config.device == 'auto':
-            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            # self.device = 'cuda' if torc.cuda.is_available() else 'cpu'
+            # we will deal with cuda later
+            config.device = 'cpu'
         else:
             self.device = config.device
         self.model = self.model.to(self.device)
@@ -65,9 +69,9 @@ class Trainer:
         self.optimizer = model.configure_optimizers(config)
 
         # setup the dataloader
-        train_loader = DataLoader(
+        train_loader = tinyloader.DataLoader(
             self.train_dataset,
-            sampler=torch.utils.data.RandomSampler(self.train_dataset, replacement=True, num_samples=int(1e10)),
+            sampler=tinyloader.RandomSampler(self.train_dataset, replacement=True, num_samples=int(1e10)),
             shuffle=False,
             pin_memory=True,
             batch_size=config.batch_size,
@@ -95,7 +99,7 @@ class Trainer:
             # backprop and update the parameters
             model.zero_grad(set_to_none=True)
             self.loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_norm_clip)
+            tinyutils.clip_grad_norm_(model.parameters(), config.grad_norm_clip)
             self.optimizer.step()
 
             self.trigger_callbacks('on_batch_end')
