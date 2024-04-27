@@ -67,6 +67,8 @@ class CausalSelfAttention:#(nn.Module):
         # causal mask to ensure that attention is only applied to the left in the input sequence
         # self.register_buffer("bias", Tensor.ones(config.block_size, config.block_size).tril()
         #                              .view(1, 1, config.block_size, config.block_size))
+        self.bias = Tensor.ones(config.block_size, config.block_size).tril().view(1, 1, config.block_size, config.block_size)
+        # print(self.bias.shape)
         self.n_head = config.n_head
         self.n_embd = config.n_embd
 
@@ -76,6 +78,7 @@ class CausalSelfAttention:#(nn.Module):
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
         q, k ,v  = self.c_attn(x).split(self.n_embd, dim=2)
+        # print(q.shape, k.shape, v.shape)    
         k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
@@ -84,12 +87,12 @@ class CausalSelfAttention:#(nn.Module):
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
         att = att.softmax(axis=-1) # att = F.softmax(att, dim=-1)
-        att = self.attn_dropout(att)
+        # att = self.attn_dropout(att)
         y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
 
         # output projection
-        y = self.resid_dropout(self.c_proj(y))
+        # y = self.resid_dropout(self.c_proj(y))
         return y
 
 class Block:#(nn.Module):
@@ -108,7 +111,7 @@ class Block:#(nn.Module):
             # dropout = nn.Dropout(config.resid_pdrop),
         )
         m = self.mlp
-        self.mlpf = lambda x: m.c_proj(m.act(m.c_fc(x))).dropout(config.resid.pdrop) # MLP forward
+        self.mlpf = lambda x: m['c_proj'](m['act'](m['c_fc'](x)))#.dropout(config.resid.pdrop) # MLP forward
 
     def __call__(self, x):
         x = x + self.attn(self.ln_1(x))
@@ -292,7 +295,7 @@ class GPT:#(nn.Module):
         #     {"params": [param_dict[pn] for pn in sorted(list(no_decay))], "weight_decay": 0.0},
         # ]
         params = tinygrad.nn.state.get_parameters(self)
-        optimizer = tinygrad.nn.optim.AdamW(params, lr=train_config.learning_rate, b1=train_config.betas[0], b2=train_config.betas[1])
+        optimizer = tinygrad.nn.optim.Adam(params, lr=train_config.learning_rate, b1=train_config.betas[0], b2=train_config.betas[1])
         return optimizer
 
     def __call__(self, idx, targets=None):
@@ -302,19 +305,21 @@ class GPT:#(nn.Module):
         pos = Tensor.arange(0, t, dtype=tinygrad.dtypes.long, device=device).unsqueeze(0) # shape (1, t)
 
         # forward the GPT model itself
-        tok_emb = self.transformer.wte(idx) # token embeddings of shape (b, t, n_embd)
-        pos_emb = self.transformer.wpe(pos) # position embeddings of shape (1, t, n_embd)
-        x = self.transformer.drop(tok_emb + pos_emb)
-        for block in self.transformer.h:
+        tok_emb = self.transformer['wte'](idx) # token embeddings of shape (b, t, n_embd)
+        pos_emb = self.transformer['wpe'](pos) # position embeddings of shape (1, t, n_embd)
+        # x = self.transformer.drop(tok_emb + pos_emb)
+        x = tok_emb + pos_emb
+        for block in self.transformer['h']:
             x = block(x)
-        x = self.transformer.ln_f(x)
+        x = self.transformer['ln_f'](x)
         logits = self.lm_head(x)
 
         # if we are given some desired targets also calculate the loss
         loss = None
         if targets is not None:
             # TODO: this should be implemented in tinygrad
-            loss = cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+            # loss = cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+            loss = logits.view(-1, logits.size(-1)).sparse_categorical_crossentropy( targets.view(-1), ignore_index=-1)
 
         return logits, loss
 

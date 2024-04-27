@@ -92,16 +92,34 @@ class Trainer:
                     data_iter = iter(train_loader)
                     batch = next(data_iter)
                 # batch = [t.to(self.device) for t in batch]
+                # print(batch)
+                # print(type(batch))
+                # print(batch.shape)
                 x, y = batch
+                # print(x)
+                # print(type(x))
+                # print(x.shape)
+                x = tinygrad.tensor.Tensor(x.numpy())
+                y = tinygrad.tensor.Tensor(y.numpy())
 
+                btime = time.time()
                 # forward the model
                 logits, self.loss = model(x, y)
+                print(f'debug 1, time: {time.time() - btime}')
+                btime = time.time()
+                # print(logits.numpy())
 
                 # backprop and update the parameters
-                model.zero_grad(set_to_none=True)
+                # model.zero_grad(set_to_none=True)
+                self.optimizer.zero_grad()
                 self.loss.backward()
-                tinyutils.clip_grad_norm_(model.parameters(), config.grad_norm_clip)
+                print(f'debug 2, time: {time.time() - btime}')
+                btime = time.time()
+                # params = tinygrad.nn.state.get_parameters(model)
+                # tinyutils.clip_grad_norm_(params, config.grad_norm_clip)
                 self.optimizer.step()
+                print(f'debug 3, time: {time.time() - btime}')
+                btime = time.time()
 
                 self.trigger_callbacks('on_batch_end')
                 self.iter_num += 1
@@ -110,5 +128,6 @@ class Trainer:
                 self.iter_time = tnow
 
                 # termination conditions
-                if config.max_iters is not None and self.iter_num >= config.max_iters:
+                # if config.max_iters is not None and self.iter_num >= config.max_iters:
+                if self.iter_num >= 10:
                     break
