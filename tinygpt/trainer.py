@@ -6,7 +6,8 @@ so nothing in this file really has anything to do with GPT specifically.
 import time
 from collections import defaultdict
 
-import tinygrad
+from tinygrad.tensor import Tensor
+
 from tinygpt.tinyloader import DataLoader
 from tinygpt import tinyutils
 from tinygpt.utils import CfgNode as CN
@@ -65,7 +66,7 @@ class Trainer:
             num_workers=config.num_workers,
         )
 
-        t = tinygrad.tensor.Tensor.train()
+        t = Tensor.train()
         t.__enter__()
         self.iter_num = 0
         self.iter_time = time.time()
@@ -79,8 +80,8 @@ class Trainer:
                 data_iter = iter(train_loader)
                 batch = next(data_iter)
             x, y = batch
-            x = tinygrad.tensor.Tensor(x.numpy())
-            y = tinygrad.tensor.Tensor(y.numpy())
+            x = Tensor(x.numpy())
+            y = Tensor(y.numpy())
 
             # forward the model
             logits, self.loss = model(x, y)

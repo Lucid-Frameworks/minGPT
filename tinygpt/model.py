@@ -10,7 +10,7 @@ https://github.com/huggingface/transformers/blob/main/src/transformers/models/gp
 
 import math
 
-import tinygrad
+from tinygrad import dtypes
 from tinygrad.tensor import Tensor
 import tinygrad.nn as nn
 
@@ -157,7 +157,7 @@ class GPT:
         # NOTE: Tinygrad doesn't support custom initialization
 
         # report number of parameters (note we don't count the decoder parameters in lm_head)
-        n_params = sum(p.numel() for p in tinygrad.nn.state.get_parameters(self.transformer))
+        n_params = sum(p.numel() for p in nn.state.get_parameters(self.transformer))
         print("number of parameters: %.2fM" % (n_params/1e6,))
 
     # @classmethod
@@ -215,14 +215,14 @@ class GPT:
 
         # NOTE: Tinygrad's AdamW doesn't support decay. hmmm...
         # NOTE: There may be a way to do clever filtering here to exclude the no-grad `bias` tensors
-        params = tinygrad.nn.state.get_parameters(self)
-        optimizer = tinygrad.nn.optim.AdamW(params, lr=train_config.learning_rate, b1=train_config.betas[0], b2=train_config.betas[1])
+        params = nn.state.get_parameters(self)
+        optimizer = nn.optim.AdamW(params, lr=train_config.learning_rate, b1=train_config.betas[0], b2=train_config.betas[1])
         return optimizer
 
     def __call__(self, idx, targets=None):
         b, t = idx.size()
         assert t <= self.block_size, f"Cannot forward sequence of length {t}, block size is only {self.block_size}"
-        pos = Tensor.arange(0, t, dtype=tinygrad.dtypes.long).unsqueeze(0) # shape (1, t)
+        pos = Tensor.arange(0, t, dtype=dtypes.long).unsqueeze(0) # shape (1, t)
 
         # forward the GPT model itself
         tok_emb = self.transformer['wte'](idx) # token embeddings of shape (b, t, n_embd)
