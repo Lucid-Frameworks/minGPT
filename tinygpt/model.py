@@ -214,6 +214,7 @@ class GPT:
         """
 
         # NOTE: Tinygrad's AdamW doesn't support decay. hmmm...
+        # NOTE: There may be a way to do clever filtering here to exclude the no-grad `bias` tensors
         params = tinygrad.nn.state.get_parameters(self)
         optimizer = tinygrad.nn.optim.AdamW(params, lr=train_config.learning_rate, b1=train_config.betas[0], b2=train_config.betas[1])
         return optimizer
