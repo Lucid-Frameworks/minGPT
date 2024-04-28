@@ -180,9 +180,8 @@ class GPT:
         #         p = Tensor.normal(mean=0.0, std=0.02/math.sqrt(2 * config.n_layer), shape=p.shape)
 
         # report number of parameters (note we don't count the decoder parameters in lm_head)
-        # TODO: bring this back
-        # n_params = sum(p.numel() for p in self.transformer.parameters())
-        # print("number of parameters: %.2fM" % (n_params/1e6,))
+        n_params = sum(p.numel() for p in tinygrad.nn.state.get_parameters(self.transformer))
+        print("number of parameters: %.2fM" % (n_params/1e6,))
 
     # @classmethod
     # def from_pretrained(cls, model_type):
