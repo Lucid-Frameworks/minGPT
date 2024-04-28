@@ -5,7 +5,7 @@ setup(name='tinyGPT',
       # author='Andrej Karpathy',
       author='Ziliang Peng',
       packages=['tinygpt'],
-      description='A tinygrad port of Andrej Kaparthy\'s minGPT',
+      description='A tinygrad port of Andrej Karpathy\'s minGPT',
       license='MIT',
       install_requires=[
             'torch',
