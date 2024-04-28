@@ -58,8 +58,8 @@ class CausalSelfAttention:
         # output projection
         self.c_proj = nn.Linear(config.n_embd, config.n_embd)
         # regularization
-        # self.attn_dropout = nn.Dropout(config.attn_pdrop)
-        # self.resid_dropout = nn.Dropout(config.resid_pdrop)
+        self.attn_pdrop = config.attn_pdrop
+        self.resid_pdrop = config.resid_pdrop
         # causal mask to ensure that attention is only applied to the left in the input sequence
         # self.register_buffer("bias", Tensor.ones(config.block_size, config.block_size).tril()
         #                              .view(1, 1, config.block_size, config.block_size))
@@ -81,12 +81,12 @@ class CausalSelfAttention:
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
         att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
         att = att.softmax(axis=-1) # att = F.softmax(att, dim=-1)
-        # att = self.attn_dropout(att)
+        att = att.dropout(self.attn_pdrop)
         y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
 
         # output projection
-        # y = self.resid_dropout(self.c_proj(y))
+        y = self.c_proj(y).dropout(self.resid_pdrop)
         return y
 
 class Block:
@@ -98,14 +98,14 @@ class Block:
         self.attn = CausalSelfAttention(config)
         self.ln_2 = nn.LayerNorm(config.n_embd)
         # What could go wrong now that I replace a ModuleDict with a dict
+        self.resid_pdrop = config.resid_pdrop
         self.mlp = dict(
             c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd),
             c_proj  = nn.Linear(4 * config.n_embd, config.n_embd),
             act     = NewGELU(),
-            # dropout = nn.Dropout(config.resid_pdrop),
         )
         m = self.mlp
-        self.mlpf = lambda x: m['c_proj'](m['act'](m['c_fc'](x)))#.dropout(config.resid.pdrop) # MLP forward
+        self.mlpf = lambda x: m['c_proj'](m['act'](m['c_fc'](x))).dropout(self.resid_pdrop) # MLP forward
 
     def __call__(self, x):
         x = x + self.attn(self.ln_1(x))
@@ -164,7 +164,7 @@ class GPT:
         self.transformer = dict(
             wte = nn.Embedding(config.vocab_size, config.n_embd),
             wpe = nn.Embedding(config.block_size, config.n_embd),
-            # drop = nn.Dropout(config.embd_pdrop), # in Tinygrad dropout is a function not a Layer.
+            drop = config.embd_pdrop, # in Tinygrad dropout is a function not a Layer.
             # h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
             # Again, what could go wrong now that I replace a ModuleList with a list
             h = [Block(config) for _ in range(config.n_layer)],
@@ -284,8 +284,7 @@ class GPT:
         # forward the GPT model itself
         tok_emb = self.transformer['wte'](idx) # token embeddings of shape (b, t, n_embd)
         pos_emb = self.transformer['wpe'](pos) # position embeddings of shape (1, t, n_embd)
-        # x = self.transformer.drop(tok_emb + pos_emb)
-        x = tok_emb + pos_emb
+        x = (tok_emb + pos_emb).dropout(self.transformer['drop'])
         for block in self.transformer['h']:
             x = block(x)
         x = self.transformer['ln_f'](x)
