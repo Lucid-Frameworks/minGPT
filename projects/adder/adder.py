@@ -8,7 +8,6 @@ import json
 
 import tinygrad
 import torch
-# from torch.utils.data import Dataset
 
 from tinygpt.tinyloader import DataLoader
 from tinygpt.model import GPT
@@ -152,12 +151,10 @@ if __name__ == '__main__':
         ndigit = config.data.ndigit
         results = []
         mistakes_printed_already = 0
-        tmp_device = 'cpu'
-        factors = torch.tensor([[10**i for i in range(ndigit+1)][::-1]]).to(tmp_device)
+        factors = torch.tensor([[10**i for i in range(ndigit+1)][::-1]])
         # factors = tinygrad.tensor.Tensor([[10**i for i in range(ndigit+1)][::-1]]).to(tmp_device)
         loader = DataLoader(dataset, batch_size=100, num_workers=0, drop_last=False)
         for b, (x, y) in enumerate(loader):
-            x = x.to(tmp_device)
             # isolate the first two digits of the input sequence alone
             d1d2 = x[:, :ndigit*2]
             # let the model sample the rest of the sequence
