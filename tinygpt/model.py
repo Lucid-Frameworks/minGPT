@@ -46,6 +46,8 @@ class CausalSelfAttention:
         # regularization
         self.attn_pdrop = config.attn_pdrop
         self.resid_pdrop = config.resid_pdrop
+        self.bias = Tensor.ones(config.block_size, config.block_size).tril().view(1, 1, config.block_size, config.block_size)
+        self.bias.requires_grad = False
         self.n_head = config.n_head
         self.n_embd = config.n_embd
 
@@ -59,11 +61,9 @@ class CausalSelfAttention:
         v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
 
         # causal mask to ensure that attention is only applied to the left in the input sequence
-        # NOTE: Can't make it part of self as tinygrad asserts grad. Does tinygrad support registering no-grad tensor?
-        bias = Tensor.ones(T, T).tril().view(1, 1, T, T)
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
-        att = att.masked_fill(bias[:,:,:T,:T] == 0, float('-inf'))
+        att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
         att = att.softmax(axis=-1)
         att = att.dropout(self.attn_pdrop)
         y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
@@ -214,8 +214,7 @@ class GPT:
         """
 
         # NOTE: Tinygrad's AdamW doesn't support decay. hmmm...
-        # NOTE: There may be a way to do clever filtering here to exclude the no-grad `bias` tensors
-        params = nn.state.get_parameters(self)
+        params = list(filter(lambda x: x.requires_grad != False, nn.state.get_parameters(self))) # Do not optimize the requires_grad=False tensors
         optimizer = nn.optim.AdamW(params, lr=train_config.learning_rate, b1=train_config.betas[0], b2=train_config.betas[1])
         return optimizer
 
