@@ -1,6 +1,6 @@
 # You like karpathy? You like geohot? You love tinyGPT! ❤️
 
-![tinyGPT](godzilla.avif)
+![tinyGPT](hotzilla.avif)
 
 tinyGPT is an attempt to port karpathy's minGPT to geohot's tinygrad. It serves a few purposes:
 - demonstrate API compatibility and diff between PyTorch and Tinygrad
