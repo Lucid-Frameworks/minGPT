@@ -65,7 +65,6 @@ class Trainer:
             num_workers=config.num_workers,
         )
 
-        # model.train()
         t = tinygrad.tensor.Tensor.train()
         t.__enter__()
         self.iter_num = 0
@@ -87,7 +86,6 @@ class Trainer:
             logits, self.loss = model(x, y)
 
             # backprop and update the parameters
-            # model.zero_grad(set_to_none=True)
             self.optimizer.zero_grad()
             self.loss.backward()
             # NOTE: tinygrad does not have clip_grad_norm_
