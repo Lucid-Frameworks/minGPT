@@ -50,7 +50,6 @@ class CausalSelfAttention:
         self.n_embd = config.n_embd
 
     def __call__(self, x):
-        # TODO: it's suspected tha softmax and the bias are the no-grad tensors
         B, T, C = x.size() # batch size, sequence length, embedding dimensionality (n_embd)
 
         # calculate query, key, values for all heads in batch and move head forward to be the batch dim
@@ -65,7 +64,7 @@ class CausalSelfAttention:
         # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
         att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
         att = att.masked_fill(bias[:,:,:T,:T] == 0, float('-inf'))
-        att = att.softmax(axis=-1) # att = F.softmax(att, dim=-1)
+        att = att.softmax(axis=-1)
         att = att.dropout(self.attn_pdrop)
         y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
         y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
@@ -82,7 +81,6 @@ class Block:
         self.ln_1 = nn.LayerNorm(config.n_embd)
         self.attn = CausalSelfAttention(config)
         self.ln_2 = nn.LayerNorm(config.n_embd)
-        # What could go wrong now that I replace a ModuleDict with a dict
         self.resid_pdrop = config.resid_pdrop
         self.mlp = dict(
             c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd),
@@ -150,8 +148,6 @@ class GPT:
             wte = nn.Embedding(config.vocab_size, config.n_embd),
             wpe = nn.Embedding(config.block_size, config.n_embd),
             drop = config.embd_pdrop, # in Tinygrad dropout is a function not a Layer.
-            # h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
-            # Again, what could go wrong now that I replace a ModuleList with a list
             h = [Block(config) for _ in range(config.n_layer)],
             ln_f = nn.LayerNorm(config.n_embd),
         )
@@ -239,13 +235,10 @@ class GPT:
         # if we are given some desired targets also calculate the loss
         loss = None
         if targets is not None:
-            # TODO: this should be implemented in tinygrad
-            # loss = cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
             loss = logits.view(-1, logits.size(-1)).sparse_categorical_crossentropy( targets.view(-1), ignore_index=-1)
 
         return logits, loss
 
-    # @torch.no_grad()
     def generate(self, idx, max_new_tokens, temperature=1.0, do_sample=False, top_k=None):
         """
         Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
