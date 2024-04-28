@@ -19,21 +19,7 @@ from tinygpt.utils import CfgNode as CN
 
 # -----------------------------------------------------------------------------
 
-# def init_w(layer):
-#     if isinstance(module, nn.Linear):
-#         # torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
-#         module.weight = Tensor.normal(mean=0.0, std=0.02, shape=module.weight.shape)
-#         if module.bias is not None:
-#             # torch.nn.init.zeros_(module.bias)
-#             module.bias = Tensor.zeros(module.bias.shape)
-#     elif isinstance(module, nn.Embedding):
-#         # torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
-#         module.weight = Tensor.normal(mean=0.0, std=0.02, shape=module.weight.shape)
-#     elif isinstance(module, nn.LayerNorm):
-#         # torch.nn.init.zeros_(module.bias)
-#         module.bias = Tensor.zeros(module.bias.shape)
-#         # torch.nn.init.ones_(module.weight)
-#         module.weight = Tensor.ones(module.weight.shape)
+# NOTE: Tinygrad layer initialization doesn't support customizing the mean and std.
 
 class NewGELU:
     """
@@ -172,11 +158,7 @@ class GPT:
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
         # init all weights, and apply a special scaled init to the residual projections, per GPT-2 paper
-        # self.apply(self._init_weights)
-        # for pn, p in self.named_parameters():
-        #     if pn.endswith('c_proj.weight'):
-        #         # torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))
-        #         p = Tensor.normal(mean=0.0, std=0.02/math.sqrt(2 * config.n_layer), shape=p.shape)
+        # NOTE: Tinygrad doesn't support custom initialization
 
         # report number of parameters (note we don't count the decoder parameters in lm_head)
         n_params = sum(p.numel() for p in tinygrad.nn.state.get_parameters(self.transformer))
