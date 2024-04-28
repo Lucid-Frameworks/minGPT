@@ -6,8 +6,10 @@ so nothing in this file really has anything to do with GPT specifically.
 import time
 from collections import defaultdict
 
-import torch
+from tinygrad.tensor import Tensor
+
 from tinygpt.tinyloader import DataLoader
+from tinygpt import tinyutils
 from tinygpt.utils import CfgNode as CN
 
 class Trainer:
@@ -15,8 +17,6 @@ class Trainer:
     @staticmethod
     def get_default_config():
         C = CN()
-        # device to train on
-        C.device = 'auto'
         # dataloder parameters
         C.num_workers = 4
         # optimizer parameters
@@ -34,14 +34,6 @@ class Trainer:
         self.optimizer = None
         self.train_dataset = train_dataset
         self.callbacks = defaultdict(list)
-
-        # determine the device we'll train on
-        if config.device == 'auto':
-            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        else:
-            self.device = config.device
-        self.model = self.model.to(self.device)
-        print("running on device", self.device)
 
         # variables that will be assigned to trainer class later for logging and etc
         self.iter_num = 0
@@ -67,14 +59,15 @@ class Trainer:
         # setup the dataloader
         train_loader = DataLoader(
             self.train_dataset,
-            sampler=torch.utils.data.RandomSampler(self.train_dataset, replacement=True, num_samples=int(1e10)),
+            sampler=DataLoader.RandomSampler(self.train_dataset, replacement=True, num_samples=int(1e10)),
             shuffle=False,
             pin_memory=True,
             batch_size=config.batch_size,
             num_workers=config.num_workers,
         )
 
-        model.train()
+        t = Tensor.train()
+        t.__enter__()
         self.iter_num = 0
         self.iter_time = time.time()
         data_iter = iter(train_loader)
@@ -86,16 +79,17 @@ class Trainer:
             except StopIteration:
                 data_iter = iter(train_loader)
                 batch = next(data_iter)
-            batch = [t.to(self.device) for t in batch]
             x, y = batch
+            x = Tensor(x.numpy())
+            y = Tensor(y.numpy())
 
             # forward the model
             logits, self.loss = model(x, y)
 
             # backprop and update the parameters
-            model.zero_grad(set_to_none=True)
+            self.optimizer.zero_grad()
             self.loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_norm_clip)
+            # NOTE: tinygrad does not have clip_grad_norm_
             self.optimizer.step()
 
             self.trigger_callbacks('on_batch_end')
@@ -107,3 +101,4 @@ class Trainer:
             # termination conditions
             if config.max_iters is not None and self.iter_num >= config.max_iters:
                 break
+        t.__exit__(0, 0, 0)
