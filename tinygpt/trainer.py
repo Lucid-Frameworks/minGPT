@@ -90,8 +90,7 @@ class Trainer:
             # model.zero_grad(set_to_none=True)
             self.optimizer.zero_grad()
             self.loss.backward()
-            # params = tinygrad.nn.state.get_parameters(model)
-            # tinyutils.clip_grad_norm_(params, config.grad_norm_clip)
+            # NOTE: tinygrad does not have clip_grad_norm_
             self.optimizer.step()
 
             self.trigger_callbacks('on_batch_end')
