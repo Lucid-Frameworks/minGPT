@@ -81,14 +81,14 @@ class Block:
         self.ln_1 = nn.LayerNorm(config.n_embd)
         self.attn = CausalSelfAttention(config)
         self.ln_2 = nn.LayerNorm(config.n_embd)
-        self.resid_pdrop = config.resid_pdrop
         self.mlp = dict(
             c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd),
             c_proj  = nn.Linear(4 * config.n_embd, config.n_embd),
             act     = NewGELU(),
+            dropout = config.resid_pdrop,
         )
         m = self.mlp
-        self.mlpf = lambda x: m['c_proj'](m['act'](m['c_fc'](x))).dropout(self.resid_pdrop) # MLP forward
+        self.mlpf = lambda x: m['c_proj'](m['act'](m['c_fc'](x))).dropout(m['dropout']) # MLP forward
 
     def __call__(self, x):
         x = x + self.attn(self.ln_1(x))
