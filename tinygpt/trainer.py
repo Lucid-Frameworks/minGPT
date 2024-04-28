@@ -101,4 +101,4 @@ class Trainer:
             # termination conditions
             if config.max_iters is not None and self.iter_num >= config.max_iters:
                 break
-        t.__exit__()
+        t.__exit__(0, 0, 0)
