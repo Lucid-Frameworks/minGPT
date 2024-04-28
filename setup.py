@@ -2,9 +2,10 @@ from setuptools import setup
 
 setup(name='tinyGPT',
       version='0.0.1',
-      author='Andrej Karpathy',
+      # author='Andrej Karpathy',
+      author='Ziliang Peng',
       packages=['tinygpt'],
-      description='A PyTorch re-implementation of GPT',
+      description='A tinygrad port of Andrej Kaparthy\'s minGPT',
       license='MIT',
       install_requires=[
             'torch',
