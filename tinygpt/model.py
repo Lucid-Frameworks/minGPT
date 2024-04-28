@@ -191,14 +191,14 @@ class GPT:
     #         if any(k.endswith(w) for w in transposed):
     #             # special treatment for the Conv1D weights we need to transpose
     #             assert sd_hf[k].shape[::-1] == sd[k].shape
-    #             # with torch.no_grad():
+    #             # with torc.no_grad():
     #             Tensor.no_grad = True
     #             sd[k].copy_(sd_hf[k].t())
     #             Tensor.no_grad = False
     #         else:
     #             # vanilla copy over the other parameters
     #             assert sd_hf[k].shape == sd[k].shape
-    #             # with torch.no_grad():
+    #             # with torc.no_grad():
     #             Tensor.no_grad = True
     #             sd[k].copy_(sd_hf[k])
     #             Tensor.no_grad = False
