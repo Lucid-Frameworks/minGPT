@@ -81,8 +81,7 @@ def main(args):
         "BsmtQual",
         "YearBuilt",
         "KitchenQual",
-        "TotalBsmtSF",
-        "SalePrice"
+        "TotalBsmtSF"
     ]
 
     df_train_full["text"] = ""
