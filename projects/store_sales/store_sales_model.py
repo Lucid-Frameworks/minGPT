@@ -161,13 +161,14 @@ def main(args):
 
     # create a GPT instance
     if args and args[0] == "--pretrained":
-        model = GPT.from_pretrained('gpt2')
+        model = GPT.from_pretrained('gpt2', 1)
     else:
         model_config = GPT.get_default_config()
         model_config.model_type = 'gpt-nano'
         # model_config.model_type = 'gpt2'
         model_config.vocab_size = 50257 # openai's model vocabulary
         model_config.block_size = max_length # 1024 is openai's model block_size
+        model_config.n_output_nodes = 1
         model = GPT(model_config)
 
     # create a Trainer object

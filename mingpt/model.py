@@ -106,6 +106,7 @@ class GPT(nn.Module):
         # these options must be filled in externally
         C.vocab_size = None
         C.block_size = None
+        C.n_output_nodes = None
         # dropout hyperparameters
         C.embd_pdrop = 0.1
         C.resid_pdrop = 0.1
@@ -117,6 +118,7 @@ class GPT(nn.Module):
         assert config.vocab_size is not None
         assert config.block_size is not None
         self.block_size = config.block_size
+        assert config.n_output_nodes is not None
 
         type_given = config.model_type is not None
         params_given = all([config.n_layer is not None, config.n_head is not None, config.n_embd is not None])
@@ -148,7 +150,7 @@ class GPT(nn.Module):
             h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
             ln_f = nn.LayerNorm(config.n_embd),
         ))
-        self.lm_head = nn.Linear(config.n_embd, 1, bias=False)
+        self.lm_head = nn.Linear(config.n_embd, config.n_output_nodes, bias=False)
 
         # init all weights, and apply a special scaled init to the residual projections, per GPT-2 paper
         self.apply(self._init_weights)
@@ -172,7 +174,7 @@ class GPT(nn.Module):
             torch.nn.init.ones_(module.weight)
 
     @classmethod
-    def from_pretrained(cls, model_type):
+    def from_pretrained(cls, model_type, n_output_nodes):
         """
         Initialize a pretrained GPT model by copying over the weights
         from a huggingface/transformers checkpoint.
@@ -183,6 +185,7 @@ class GPT(nn.Module):
         # create a from-scratch initialized minGPT model
         config = cls.get_default_config()
         config.model_type = model_type
+        config.n_output_nodes = n_output_nodes
         config.vocab_size = 50257 # openai's model vocabulary
         config.block_size = 1024  # openai's model block_size
         model = GPT(config)
@@ -277,7 +280,10 @@ class GPT(nn.Module):
         # if we are given some desired targets also calculate the loss
         loss = None
         if targets is not None:
-            loss = F.mse_loss(preds[:, -1].squeeze(), targets)
+            if self.lm_head.out_features == 1:
+                loss = F.mse_loss(preds[:, -1].squeeze(), targets)
+            else:
+                loss = F.cross_entropy(preds[:, -1].squeeze(), targets)
 
         return preds, loss
 
@@ -291,8 +297,12 @@ class GPT(nn.Module):
         """
         # if the sequence context is growing too long we must crop it at block_size
         idx_cond = idx if idx.size(1) <= self.block_size else idx[:, -self.block_size:]
-        # forward the model to get the logits for the index in the sequence
+        # forward the model to get the preds (logits for classification) for the index in the sequence
         preds, _ = self(idx_cond)
 
         idx_next = preds[:, -1, :]
+
+        if self.lm_head.out_features > 1:
+            _, idx_next = torch.topk(idx_next, 1, axis=1)
+
         return idx_next
