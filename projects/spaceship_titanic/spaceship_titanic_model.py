@@ -7,9 +7,9 @@ from sklearn.metrics import accuracy_score
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 
-from mingpt.model import GPT
-from mingpt.trainer import Trainer
-from mingpt.bpe import get_encoder
+from tabgpt.model import tabGPT
+from tabgpt.trainer import Trainer
+from tabgpt.col_embed import get_column_embeddings
 
 from IPython import embed
 
@@ -38,20 +38,6 @@ def predict(model, dataloader, df):
 
     df["yhat"] = yhat
     return df
-
-
-def padding(input_ids, max_length):
-    for i, ids in enumerate(input_ids):
-        pad_list = [666] * (max_length - len(ids)) # negative values throw error in embeddings
-        input_ids[i] = ids + pad_list
-    return input_ids
-
-
-def encode_text(df, enc):
-    input_ids = []
-    for text in df["text"].tolist():
-        input_ids.append(enc.encode(text))
-    return input_ids
 
 
 def feature_engineering(df):
@@ -84,20 +70,20 @@ def main(pretrained):
 
     df_train_full = feature_engineering(df_train_full)
 
-    features = [
-        "number_in_group",
+    categorical_features = [
         "single_group",
-        # "group_size",
         "HomePlanet",
         "CryoSleep",
         "deck",
         "num",
         "side",
         "single_cabin",
-        # "cabin_size",
         "Destination",
-        "Age",
         "VIP",
+    ]
+    numerical_features = [
+        "number_in_group",
+        "Age",
         "RoomService",
         "FoodCourt",
         "ShoppingMall",
@@ -105,41 +91,40 @@ def main(pretrained):
         "VRDeck"
     ]
 
-    df_train_full["text"] = ""
-    for col in features:
-        df_train_full["text"] += col + ": " + df_train_full[col].astype(str) + "\n"
+    features = categorical_features + numerical_features
+
+    df_train_full = df_train_full.fillna(-999)
 
     validation_groups = np.random.randint(0, len(df_train_full["group"].unique()), size=1000)
     df_val = df_train_full.loc[df_train_full["group"].isin(validation_groups)]
     df_train = df_train_full.loc[~df_train_full["group"].isin(validation_groups)]
 
-    enc = get_encoder()
-    input_ids_train = encode_text(df_train, enc)
+    features_embeds_train = get_column_embeddings(df_train, categorical_features, numerical_features, number_of_cols=16)
+    features_embeds_val = get_column_embeddings(df_val, categorical_features, numerical_features, number_of_cols=16)
 
-    max_length = 0
-    for ids in input_ids_train:
-        len_ids = len(ids)
-        if len_ids > max_length:
-            max_length = len_ids
-
-    input_ids_train = padding(input_ids_train, max_length)
+    max_length = len(features)
 
     train_dataset = TensorDataset(
-        torch.tensor(input_ids_train), 
+        features_embeds_train, 
         torch.tensor(df_train["Transported"].tolist(), dtype=torch.long)
         )
 
-    # create a GPT instance
+    val_dataset = TensorDataset(
+        features_embeds_val, 
+        torch.tensor(df_val["Transported"].tolist(), dtype=torch.long)
+        )
+
+    # tabGPT model
     if pretrained:
-        model = GPT.from_pretrained('gpt2', 2)
+        model = tabGPT.from_pretrained('gpt2', 2)
     else:
-        model_config = GPT.get_default_config()
+        model_config = tabGPT.get_default_config()
         model_config.model_type = 'gpt-nano'
         # model_config.model_type = 'gpt2'
         model_config.vocab_size = 50257 # openai's model vocabulary
         model_config.block_size = max_length # 1024 is openai's model block_size
         model_config.n_output_nodes = 2
-        model = GPT(model_config)
+        model = tabGPT(model_config)
 
     # create a Trainer object
     train_config = Trainer.get_default_config()
@@ -160,12 +145,6 @@ def main(pretrained):
     df_train = predict(model, DataLoader(train_dataset, batch_size=32), df_train)
     evaluation(df_train["Transported"], df_train["yhat"])
 
-    input_ids_val = encode_text(df_val, enc)
-    input_ids_val = padding(input_ids_val, max_length)
-    val_dataset = TensorDataset(
-        torch.tensor(input_ids_val), 
-        torch.tensor(df_val["Transported"].tolist(), dtype=torch.long)
-        )
     df_val = predict(model, DataLoader(val_dataset, batch_size=32), df_val)
     evaluation(df_val["Transported"], df_val["yhat"])
 

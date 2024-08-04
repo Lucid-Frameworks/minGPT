@@ -8,9 +8,9 @@ from sklearn.model_selection import train_test_split
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 
-from mingpt.model import GPT
-from mingpt.trainer import Trainer
-from mingpt.bpe import get_encoder
+from tabgpt.model import tabGPT
+from tabgpt.trainer import Trainer
+from tabgpt.col_embed import get_column_embeddings
 from projects.house_prices.construct_dataset import construct_text
 
 from IPython import embed
@@ -49,92 +49,71 @@ def predict(model, dataloader, df):
     return df
 
 
-def padding(input_ids, max_length):
-    for i, ids in enumerate(input_ids):
-        pad_list = [666] * (max_length - len(ids)) # negative values throw error in embeddings
-        input_ids[i] = ids + pad_list
-    return input_ids
-
-
-def encode_text(df, enc):
-    input_ids = []
-    for text in df["text"].tolist():
-        input_ids.append(enc.encode(text))
-    return input_ids
-
-
-def main(pretrained, enrich, validation):
+def main(pretrained, enrich):
     np.random.seed(666)
     torch.manual_seed(42)
 
     if enrich:
-        df_train_full, df_test = construct_text()
+        df_train_full = construct_text()
+        categorical_features = [
+            "Overall material and finish of the house",
+            "Quality of the material on the exterior",
+            "Physical locations within Ames city limits",
+            "Height of the basement",
+            "Original construction date",
+            "Kitchen quality",
+        ]
+        numerical_features = [
+            "Size of garage in car capacity",
+            "Above grade (ground) living area square feet",
+            "Size of garage in square feet",
+            "Total square feet of basement area"            
+        ]
     else:
         # use data from Kaggle competition https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques
         df_train_full = pd.read_csv("train.csv")
-        df_test = pd.read_csv("test.csv")
-
-        features = [
+        categorical_features = [
             "OverallQual",
-            "GarageCars",
             "ExterQual",
             "Neighborhood",
-            "GrLivArea",
-            "GarageArea",
             "BsmtQual",
             "YearBuilt",
             "KitchenQual",
-            "TotalBsmtSF"
+        ]
+        numerical_features = [
+            "GarageCars",
+            "GrLivArea",
+            "GarageArea",
+            "TotalBsmtSF"            
         ]
 
-        df_train_full["text"] = ""
-        df_test["text"] = ""
-        for col in features:
-            df_train_full["text"] += col + ": " + df_train_full[col].astype(str) + "\n"
-            df_test["text"] += col + ": " + df_test[col].astype(str) + "\n"
+    features = categorical_features + numerical_features
 
     df_train_full["SalePrice_transformed"] = np.log(1 + df_train_full["SalePrice"])
 
-    df_train_full = df_train_full[['Id', 'text', 'SalePrice', 'SalePrice_transformed']]
-    df_test = df_test[['Id', 'text']]
+    df_train_full = df_train_full[['Id', 'SalePrice', 'SalePrice_transformed'] + features]
 
-    if validation:
-        df_train, df_val = train_test_split(df_train_full, test_size=0.2, random_state=666)
-    else:
-        df_train = df_train_full
+    df_train, df_val = train_test_split(df_train_full, test_size=0.2, random_state=666)
 
-    enc = get_encoder()
-    input_ids_train = encode_text(df_train, enc)
-    input_ids_test = encode_text(df_test, enc)
-
-    max_length = 0
-    for ids in input_ids_train:
-        len_ids = len(ids)
-        if len_ids > max_length:
-            max_length = len_ids
-    for ids in input_ids_test:
-        len_ids = len(ids)
-        if len_ids > max_length:
-            max_length = len_ids
-
-    input_ids_train = padding(input_ids_train, max_length)
+    features_embeds_train = get_column_embeddings(df_train, categorical_features, numerical_features)
 
     train_dataset = TensorDataset(
-        torch.tensor(input_ids_train), 
+        features_embeds_train, 
         torch.tensor(df_train["SalePrice_transformed"].tolist(), dtype=torch.float32)
         )
 
-    # create a GPT instance
+    max_length = len(features)
+
+    # tabGPT model
     if pretrained:
-        model = GPT.from_pretrained('gpt2', 1)
+        model = tabGPT.from_pretrained('gpt2', 1)
     else:
-        model_config = GPT.get_default_config()
+        model_config = tabGPT.get_default_config()
         model_config.model_type = 'gpt-nano'
-        # model_config.model_type = 'gpt2'
         model_config.vocab_size = 50257 # openai's model vocabulary
         model_config.block_size = max_length # 1024 is openai's model block_size
         model_config.n_output_nodes = 1
-        model = GPT(model_config)
+        model = tabGPT(model_config)
 
     # create a Trainer object
     train_config = Trainer.get_default_config()
@@ -155,24 +134,13 @@ def main(pretrained, enrich, validation):
     df_train = predict(model, DataLoader(train_dataset, batch_size=32), df_train)
     evaluation(df_train["SalePrice"], df_train["yhat"])
 
-    if validation:
-        input_ids_val = encode_text(df_val, enc)
-        input_ids_val = padding(input_ids_val, max_length)
-        val_dataset = TensorDataset(
-            torch.tensor(input_ids_val), 
-            torch.tensor(df_val["SalePrice_transformed"].tolist(), dtype=torch.float32)
-            )
-        df_val = predict(model, DataLoader(val_dataset, batch_size=32), df_val)
-        evaluation(df_val["SalePrice"], df_val["yhat"])
-    else:
-        input_ids_test = padding(input_ids_test, max_length)
-        test_dataset = TensorDataset(
-            torch.tensor(input_ids_test),
-            torch.tensor(df_test["Id"].tolist(), dtype=torch.float32)
-            )
-        df_test = predict(model, DataLoader(test_dataset, batch_size=32), df_test)
-        df_test.rename(columns={"yhat": "SalePrice"}, inplace=True)
-        df_test[["Id", "SalePrice"]].to_csv("submission.csv", index=False)
+    features_embeds_val = get_column_embeddings(df_val, categorical_features, numerical_features)
+    val_dataset = TensorDataset(
+        features_embeds_val, 
+        torch.tensor(df_val["SalePrice_transformed"].tolist(), dtype=torch.float32)
+        )
+    df_val = predict(model, DataLoader(val_dataset, batch_size=32), df_val)
+    evaluation(df_val["SalePrice"], df_val["yhat"])
 
     embed()
 
@@ -181,6 +149,5 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--pretrained", action="store_true")
     parser.add_argument("--enrich", action="store_true")
-    parser.add_argument("--validation", action="store_true")
     args = parser.parse_args()
-    main(args.pretrained, args.enrich, args.validation)
+    main(args.pretrained, args.enrich)

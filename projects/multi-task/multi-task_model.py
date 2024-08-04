@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 
-from mingpt.model import GPT
-from mingpt.trainer import Trainer
-from mingpt.bpe import get_encoder
+from tabgpt.model import tabGPT
+from tabgpt.trainer import Trainer
+from tabgpt.col_embed import get_column_embeddings
 
 from IPython import embed
 
@@ -47,16 +47,9 @@ def backtransform(df):
     return df
 
 
-def evaluation(df):
-    print('data set: store sales')
-    mask = (df["dataset"] == "store sales")
-    print('RMSLE: ', root_mean_squared_log_error(df[mask]["target"], df[mask]["yhat"]))
-    print('mean(y): ', np.mean(df[mask]["target"]))
-
-    print('data set: house prices')
-    mask = (df["dataset"] == "house prices")
-    print('RMSLE: ', root_mean_squared_log_error(df[mask]["target"], df[mask]["yhat"]))
-    print('mean(y): ', np.mean(df[mask]["target"]))
+def evaluation(y, yhat):
+    print('RMSLE: ', root_mean_squared_log_error(y, yhat))
+    print('mean(y): ', np.mean(y))
 
 
 def predict(model, dataloader, df):
@@ -72,20 +65,6 @@ def predict(model, dataloader, df):
     df["yhat"] = np.clip(df["yhat"], 0, None)
     df = backtransform(df)
     return df
-
-
-def padding(input_ids, max_length):
-    for i, ids in enumerate(input_ids):
-        pad_list = [666] * (max_length - len(ids)) # negative values throw error in embeddings
-        input_ids[i] = ids + pad_list
-    return input_ids
-
-
-def encode_text(df, enc):
-    input_ids = []
-    for text in df["text"].tolist():
-        input_ids.append(enc.encode(text))
-    return input_ids
 
 
 def get_data_store_sales():
@@ -106,21 +85,23 @@ def get_data_store_sales():
         "dayofweek": "weekday",
         "onpromotion": "promotion"
     }, inplace=True)
-    features = [
+    categorical_features = [
         "store",
         "product group",
         "weekday",
+    ]
+    numerical_features = [
         "promotion",
     ]
 
-    df_train_full["text"] = ""
-    for col in features:
-        df_train_full["text"] += col + ": " + df_train_full[col].astype(str) + "\n"
+    features = categorical_features + numerical_features
+
+    df_train_full = df_train_full.fillna(-999)
 
     df_train = df_train_full[df_train_full["date"] <= "2017-07-30"].reset_index()
     df_val = df_train_full[df_train_full["date"] >= "2017-07-31"].reset_index()
 
-    return df_train, df_val
+    return df_train, df_val, features, categorical_features, numerical_features
 
 
 def get_data_house_prices():
@@ -129,76 +110,62 @@ def get_data_house_prices():
 
     df_train_full["target"] = np.log(1 + df_train_full["SalePrice"])
 
-    features = [
+    categorical_features = [
         "OverallQual",
-        "GarageCars",
         "ExterQual",
         "Neighborhood",
-        "GrLivArea",
-        "GarageArea",
         "BsmtQual",
         "YearBuilt",
         "KitchenQual",
-        "TotalBsmtSF"
+    ]
+    numerical_features = [
+        "GarageCars",
+        "GrLivArea",
+        "GarageArea",
+        "TotalBsmtSF"            
     ]
 
-    df_train_full["text"] = ""
-    for col in features:
-        df_train_full["text"] += col + ": " + df_train_full[col].astype(str) + "\n"
+    features = categorical_features + numerical_features
 
     df_train, df_val = train_test_split(df_train_full, test_size=0.2, random_state=666)
 
-    return df_train, df_val
+    return df_train, df_val, features, categorical_features, numerical_features
 
 
 def main(args):
     np.random.seed(666)
     torch.manual_seed(42)
 
-    df_train_store_sales, df_val_store_sales = get_data_store_sales()
-    df_train_house_prices, df_val_house_prices = get_data_house_prices()
+    df_train_store_sales, df_val_store_sales, features_store_sales, categorical_features_store_sales, numerical_features_store_sales = get_data_store_sales()
+    df_train_house_prices, df_val_house_prices, features_house_prices, categorical_features_house_prices, numerical_features_house_prices = get_data_house_prices()
 
-    enc = get_encoder()
-    input_ids_train_store_sales = encode_text(df_train_store_sales, enc)
-    input_ids_val_store_sales = encode_text(df_val_store_sales, enc)
-    input_ids_train_house_prices = encode_text(df_train_house_prices, enc)
-    input_ids_val_house_prices = encode_text(df_val_house_prices, enc)
+    features = features_store_sales + features_house_prices
 
-    input_ids_train = input_ids_train_store_sales + input_ids_train_house_prices
-    input_ids_val = input_ids_val_store_sales + input_ids_val_house_prices
+    features_embeds_train_store_sales = get_column_embeddings(df_train_store_sales, categorical_features_store_sales, numerical_features_store_sales)
+    features_embeds_train_house_prices = get_column_embeddings(df_train_house_prices, categorical_features_house_prices, numerical_features_house_prices)
 
-    max_length = 0
-    for ids in input_ids_train:
-        len_ids = len(ids)
-        if len_ids > max_length:
-            max_length = len_ids
+    features_embeds_train = torch.cat((features_embeds_train_store_sales, features_embeds_train_house_prices), dim=0)
 
-    input_ids_train = padding(input_ids_train, max_length)
-    input_ids_val = padding(input_ids_val, max_length)
+    max_length = len(features)
 
     targets_train = df_train_store_sales["target"].tolist() + df_train_house_prices["target"].tolist()
-    targets_val = df_val_store_sales["target"].tolist() + df_val_house_prices["target"].tolist()
 
     train_dataset = TensorDataset(
-        torch.tensor(input_ids_train), 
+        features_embeds_train, 
         torch.tensor(targets_train, dtype=torch.float32)
         )
-    val_dataset = TensorDataset(
-        torch.tensor(input_ids_val), 
-        torch.tensor(targets_val, dtype=torch.float32)
-        )
 
-    # create a GPT instance
+    # tabGPT model
     if args and args[0] == "--pretrained":
-        model = GPT.from_pretrained('gpt2', 1)
+        model = tabGPT.from_pretrained('gpt2', 1)
     else:
-        model_config = GPT.get_default_config()
+        model_config = tabGPT.get_default_config()
         model_config.model_type = 'gpt-nano'
         # model_config.model_type = 'gpt2'
         model_config.vocab_size = 50257 # openai's model vocabulary
         model_config.block_size = max_length # 1024 is openai's model block_size
         model_config.n_output_nodes = 1
-        model = GPT(model_config)
+        model = tabGPT(model_config)
 
     # create a Trainer object
     train_config = Trainer.get_default_config()
@@ -216,25 +183,25 @@ def main(args):
     trainer.run()
 
     # inference
-    df_train_store_sales = df_train_store_sales[["target", "text", "date"]]
-    df_train_store_sales["dataset"] = "store sales"
-    df_train_house_prices = df_train_house_prices[["target", "text"]]
-    df_train_house_prices["dataset"] = "house prices"
-    df_train_house_prices["date"] = ""
-    df_train = pd.concat([df_train_store_sales, df_train_house_prices])
-    df_train = predict(model, DataLoader(train_dataset, batch_size=32), df_train)
-    evaluation(df_train)
-    plot_timeseries(df_train[df_train["dataset"] == "store sales"], "train", True)
+    features_embeds_val_store_sales = get_column_embeddings(df_val_store_sales, categorical_features_store_sales, numerical_features_store_sales)
+    features_embeds_val_house_prices = get_column_embeddings(df_val_house_prices, categorical_features_house_prices, numerical_features_house_prices)
 
-    df_val_store_sales = df_val_store_sales[["target", "text", "date"]]
-    df_val_store_sales["dataset"] = "store sales"
-    df_val_house_prices = df_val_house_prices[["target", "text"]]
-    df_val_house_prices["dataset"] = "house prices"
-    df_val_house_prices["date"] = ""
-    df_val = pd.concat([df_val_store_sales, df_val_house_prices])
-    df_val = predict(model, DataLoader(val_dataset, batch_size=32), df_val)
-    evaluation(df_val)
-    plot_timeseries(df_val[df_val["dataset"] == "store sales"], "val", True)
+    val_dataset_store_sales = TensorDataset(
+        features_embeds_val_store_sales, 
+        torch.tensor(df_val_store_sales["target"].tolist(), dtype=torch.float32)
+        )
+
+    val_dataset_house_prices = TensorDataset(
+        features_embeds_val_house_prices, 
+        torch.tensor(df_val_house_prices["target"].tolist(), dtype=torch.float32)
+        )
+
+    df_val_store_sales = predict(model, DataLoader(val_dataset_store_sales, batch_size=32), df_val_store_sales)
+    evaluation(df_val_store_sales["target"], df_val_store_sales["yhat"])
+    plot_timeseries(df_val_store_sales, "val", True)
+
+    df_val_house_prices = predict(model, DataLoader(val_dataset_house_prices, batch_size=32), df_val_house_prices)
+    evaluation(df_val_house_prices["target"], df_val_house_prices["yhat"])
 
     embed()
 

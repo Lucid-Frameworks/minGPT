@@ -535,52 +535,18 @@ def construct_text():
         "SaleCondition": "Condition of sale"
     }
 
-    df_train = pd.read_csv('train.csv')
-    df_test = pd.read_csv('test.csv')
+    df = pd.read_csv('train.csv')
 
-    important_cols_train = ["OverallQual" ,"GarageCars" ,"ExterQual","Neighborhood","GrLivArea","GarageArea", "BsmtQual","YearBuilt","KitchenQual","TotalBsmtSF"]
-    important_cols_test = important_cols_train.copy()
-    important_cols_train.append('SalePrice')
-    important_cols_train.append('Id')
-    important_cols_test.append('Id')
-    df_train = df_train[important_cols_train]
-    df_test = df_test[important_cols_test]
+    important_cols = ["OverallQual", "GarageCars", "ExterQual", "Neighborhood", "GrLivArea", "GarageArea", "BsmtQual", "YearBuilt", "KitchenQual", "TotalBsmtSF"]
+    important_cols.append('SalePrice')
+    important_cols.append('Id')
+    df = df[important_cols]
 
-    for col in df_train.columns:
+    for col in df.columns:
         variable_name = f'{col.lower()}_mapping'
         if variable_name in locals() or variable_name in globals():
-            df_train.loc[:,col] = df_train[col].map(locals()[variable_name])
+            df.loc[:, col] = df[col].map(locals()[variable_name])
 
-    df_train = df_train.rename(columns=col_dict)
+    df = df.rename(columns=col_dict)
 
-    for col in df_test.columns:
-        variable_name = f'{col.lower()}_mapping'
-        if variable_name in locals() or variable_name in globals():
-            df_test.loc[:,col] = df_test[col].map(locals()[variable_name])
-
-    df_test = df_test.rename(columns=col_dict)
-
-    df_dict = {'text': [], 'SalePrice': [], 'Id': []}
-    for _, row in df_train.iterrows():
-        x = row.loc[df_train.columns != 'SalePrice'].to_dict()
-        result = list(map(lambda item: item, x.items()))
-        result_string = "; ".join(f"{key}: {value}" for key, value in result)
-        result_string = f"Here is a description of a house. {result_string}. Your task is to predict the price the house was sold for" 
-        df_dict['text'].append(result_string)
-        df_dict['SalePrice'].append(row['SalePrice'])
-        df_dict['Id'].append(row['Id'])
-
-    text_df_train = pd.DataFrame(df_dict)
-
-    df_dict = {'text': [], 'Id': []}
-    for _, row in df_test.iterrows():
-        x = row.loc[df_test.columns != 'Id'].to_dict()
-        result = list(map(lambda item: item, x.items()))
-        result_string = "; ".join(f"{key}: {value}" for key, value in result)
-        result_string = f"Here is a description of a house. {result_string}. Your task is to predict the price the house was sold for" 
-        df_dict['text'].append(result_string)
-        df_dict['Id'].append(row['Id'])
-
-    text_df_test = pd.DataFrame(df_dict)
-
-    return text_df_train, text_df_test
+    return df

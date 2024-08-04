@@ -1,5 +1,6 @@
 """
 Full definition of a GPT Language Model, all of it in this single file.
+Adapted for tabular data.
 
 References:
 1) the official GPT-2 TensorFlow implementation released by OpenAI:
@@ -14,7 +15,7 @@ import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
-from mingpt.utils import CfgNode as CN
+from tabgpt.utils import CfgNode as CN
 
 # -----------------------------------------------------------------------------
 
@@ -92,8 +93,8 @@ class Block(nn.Module):
         x = x + self.mlpf(self.ln_2(x))
         return x
 
-class GPT(nn.Module):
-    """ GPT Language Model """
+class tabGPT(nn.Module):
+    """ tabGPT model """
 
     @staticmethod
     def get_default_config():
@@ -108,7 +109,6 @@ class GPT(nn.Module):
         C.block_size = None
         C.n_output_nodes = None
         # dropout hyperparameters
-        C.embd_pdrop = 0.1
         C.resid_pdrop = 0.1
         C.attn_pdrop = 0.1
         return C
@@ -126,27 +126,13 @@ class GPT(nn.Module):
         if type_given:
             # translate from model_type to detailed configuration
             config.merge_from_dict({
-                # names follow the huggingface naming conventions
-                # GPT-1
-                'openai-gpt':   dict(n_layer=12, n_head=12, n_embd=768),  # 117M params
-                # GPT-2 configs
                 'gpt2':         dict(n_layer=12, n_head=12, n_embd=768),  # 124M params
-                'gpt2-medium':  dict(n_layer=24, n_head=16, n_embd=1024), # 350M params
-                'gpt2-large':   dict(n_layer=36, n_head=20, n_embd=1280), # 774M params
-                'gpt2-xl':      dict(n_layer=48, n_head=25, n_embd=1600), # 1558M params
-                # Gophers
-                'gopher-44m':   dict(n_layer=8, n_head=16, n_embd=512),
-                # (there are a number more...)
-                # I made these tiny models up
-                'gpt-mini':     dict(n_layer=6, n_head=6, n_embd=192),
-                'gpt-micro':    dict(n_layer=4, n_head=4, n_embd=128),
-                'gpt-nano':     dict(n_layer=3, n_head=3, n_embd=48),
+                'gpt-mini':     dict(n_layer=6, n_head=6, n_embd=768),
+                'gpt-micro':    dict(n_layer=4, n_head=4, n_embd=768),
+                'gpt-nano':     dict(n_layer=3, n_head=3, n_embd=768),
             }[config.model_type])
 
         self.transformer = nn.ModuleDict(dict(
-            wte = nn.Embedding(config.vocab_size, config.n_embd),
-            wpe = nn.Embedding(config.block_size, config.n_embd),
-            drop = nn.Dropout(config.embd_pdrop),
             h = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
             ln_f = nn.LayerNorm(config.n_embd),
         ))
@@ -179,7 +165,7 @@ class GPT(nn.Module):
         Initialize a pretrained GPT model by copying over the weights
         from a huggingface/transformers checkpoint.
         """
-        assert model_type in {'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl'}
+        assert model_type in {'gpt2'}
         from transformers import GPT2LMHeadModel
 
         # create a from-scratch initialized minGPT model
@@ -188,7 +174,7 @@ class GPT(nn.Module):
         config.n_output_nodes = n_output_nodes
         config.vocab_size = 50257 # openai's model vocabulary
         config.block_size = 1024  # openai's model block_size
-        model = GPT(config)
+        model = tabGPT(config)
         sd = model.state_dict()
 
         # init a huggingface/transformers model
@@ -262,16 +248,7 @@ class GPT(nn.Module):
         optimizer = torch.optim.AdamW(optim_groups, lr=train_config.learning_rate, betas=train_config.betas)
         return optimizer
 
-    def forward(self, idx, targets=None):
-        device = idx.device
-        b, t = idx.size()
-        assert t <= self.block_size, f"Cannot forward sequence of length {t}, block size is only {self.block_size}"
-        pos = torch.arange(0, t, dtype=torch.long, device=device).unsqueeze(0) # shape (1, t)
-
-        # forward the GPT model itself
-        tok_emb = self.transformer.wte(idx) # token embeddings of shape (b, t, n_embd)
-        pos_emb = self.transformer.wpe(pos) # position embeddings of shape (1, t, n_embd)
-        x = self.transformer.drop(tok_emb + pos_emb)
+    def forward(self, x, targets=None):
         for block in self.transformer.h:
             x = block(x)
         x = self.transformer.ln_f(x)
@@ -288,21 +265,19 @@ class GPT(nn.Module):
         return preds, loss
 
     @torch.no_grad()
-    def generate(self, idx):
+    def generate(self, x):
         """
-        Take a conditioning sequence of indices idx (LongTensor of shape (b,t)) and complete
-        the sequence max_new_tokens times, feeding the predictions back into the model each time.
-        (For our regression case here, we just predict one token ahead.)
+        Take a conditioning sequence of column embeddings x and complete it with the prediction.
         Most likely you'll want to make sure to be in model.eval() mode of operation for this.
         """
         # if the sequence context is growing too long we must crop it at block_size
-        idx_cond = idx if idx.size(1) <= self.block_size else idx[:, -self.block_size:]
+        x_cond = x if x.size(1) <= self.block_size else x[:, -self.block_size:]
         # forward the model to get the preds (logits for classification) for the index in the sequence
-        preds, _ = self(idx_cond)
+        preds, _ = self(x_cond)
 
-        idx_next = preds[:, -1, :]
+        x_next = preds[:, -1, :]
 
         if self.lm_head.out_features > 1:
-            _, idx_next = torch.topk(idx_next, 1, axis=1)
+            _, x_next = torch.topk(x_next, 1, axis=1)
 
-        return idx_next
+        return x_next

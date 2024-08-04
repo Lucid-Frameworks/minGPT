@@ -8,9 +8,9 @@ import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import TensorDataset, DataLoader
 
-from mingpt.model import GPT
-from mingpt.trainer import Trainer
-from mingpt.bpe import get_encoder
+from tabgpt.model import tabGPT
+from tabgpt.trainer import Trainer
+from tabgpt.col_embed import get_column_embeddings
 
 from IPython import embed
 
@@ -82,20 +82,6 @@ def predict(model, dataloader, df):
     return df
 
 
-def padding(input_ids, max_length):
-    for i, ids in enumerate(input_ids):
-        pad_list = [666] * (max_length - len(ids)) # negative values throw error in embeddings
-        input_ids[i] = ids + pad_list
-    return input_ids
-
-
-def encode_text(df, enc):
-    input_ids = []
-    for text in df["text"].tolist():
-        input_ids.append(enc.encode(text))
-    return input_ids
-
-
 def main(args):
     np.random.seed(666)
     torch.manual_seed(42)
@@ -121,55 +107,50 @@ def main(args):
         "dcoilwtico": "oil price",
         "ewma_sales_transformed_week": "past sales",
     }, inplace=True)
-    features = [
+    categorical_features = [
         "store",
         "product group",
         "weekday",
+    ]
+    numerical_features = [
         "promotion",
         # "oil price",
         # "past sales",
     ]
 
-    df_train_full["text"] = ""
-    for col in features:
-        df_train_full["text"] += col + ": " + df_train_full[col].astype(str) + "\n"
+    features = categorical_features + numerical_features
+
+    df_train_full = df_train_full.fillna(-999)
 
     df_train = df_train_full[df_train_full["date"] <= "2017-07-30"].reset_index()
     df_val = df_train_full[df_train_full["date"] >= "2017-07-31"].reset_index()
 
-    enc = get_encoder()
-    input_ids_train = encode_text(df_train, enc)
-    input_ids_val = encode_text(df_val, enc)
+    features_embeds_train = get_column_embeddings(df_train, categorical_features, numerical_features, number_of_cols=4)
+    features_embeds_val = get_column_embeddings(df_val, categorical_features, numerical_features, number_of_cols=4)
 
-    max_length = 0
-    for ids in input_ids_train:
-        len_ids = len(ids)
-        if len_ids > max_length:
-            max_length = len_ids
-
-    input_ids_train = padding(input_ids_train, max_length)
-    input_ids_val = padding(input_ids_val, max_length)
+    max_length = len(features)
 
     train_dataset = TensorDataset(
-        torch.tensor(input_ids_train), 
+        features_embeds_train, 
         torch.tensor(df_train["sales_transformed"].tolist(), dtype=torch.float32)
         )
+
     val_dataset = TensorDataset(
-        torch.tensor(input_ids_val), 
+        features_embeds_val, 
         torch.tensor(df_val["sales_transformed"].tolist(), dtype=torch.float32)
         )
 
-    # create a GPT instance
+    # tabGPT model
     if args and args[0] == "--pretrained":
-        model = GPT.from_pretrained('gpt2', 1)
+        model = tabGPT.from_pretrained('gpt2', 1)
     else:
-        model_config = GPT.get_default_config()
+        model_config = tabGPT.get_default_config()
         model_config.model_type = 'gpt-nano'
         # model_config.model_type = 'gpt2'
         model_config.vocab_size = 50257 # openai's model vocabulary
         model_config.block_size = max_length # 1024 is openai's model block_size
         model_config.n_output_nodes = 1
-        model = GPT(model_config)
+        model = tabGPT(model_config)
 
     # create a Trainer object
     train_config = Trainer.get_default_config()
