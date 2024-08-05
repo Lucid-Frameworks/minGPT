@@ -73,8 +73,20 @@ def get_data_store_sales():
     df_train_full = df_train_full[~np.isin(df_train_full["date"], ["2013-01-01", "2014-01-01", "2015-01-01", "2016-01-01", "2017-01-01"])]
     df_train_full = df_train_full[(df_train_full["date"] < "2016-04-16") | (df_train_full["date"] > "2016-05-01")]
 
+    df_oil = pd.read_csv("oil.csv")
+    df_train_full = df_train_full.merge(df_oil, on="date", how="left")
+
     df_train_full['dayofweek'] = pd.to_datetime(df_train_full['date']).dt.dayofweek
     df_train_full["target"] = np.log(1 + df_train_full["sales"])
+
+    def ewma_prediction(df, group_cols, col, alpha, horizon, suffix=''):
+        df.sort_values(["date"], inplace=True)
+        df_grouped = df.groupby(group_cols, group_keys=False)
+        df["ewma_{}".format(col + suffix)] = df_grouped[col].apply(lambda x: x.shift(horizon).ewm(alpha=alpha, ignore_na=True).mean())
+        return df
+
+    ewma_groups = ["store_nbr", "family", "dayofweek"]
+    df_train_full = ewma_prediction(df_train_full, ewma_groups, "target", 0.15, 1, suffix="_week")
 
     # take just a small data set for testing
     df_train_full = df_train_full[(df_train_full["date"] >= "2017-05-01") & (df_train_full["store_nbr"].isin([1, 2, 3])) & (df_train_full["family"].isin(["LIQUOR,WINE,BEER", "EGGS", "MEATS"]))].reset_index()
@@ -83,7 +95,9 @@ def get_data_store_sales():
         "store_nbr": "store",
         "family": "product group",
         "dayofweek": "weekday",
-        "onpromotion": "promotion"
+        "onpromotion": "promotion",
+        "dcoilwtico": "oil price",
+        "ewma_target_week": "past sales",
     }, inplace=True)
     categorical_features = [
         "store",
@@ -92,6 +106,8 @@ def get_data_store_sales():
     ]
     numerical_features = [
         "promotion",
+        "oil price",
+        "past sales",
     ]
 
     features = categorical_features + numerical_features
