@@ -183,6 +183,7 @@ class tabGPT(nn.Module):
 
         # copy while ensuring all of the parameters are aligned and match in names and shapes
         keys = [k for k in sd_hf if not k.endswith('attn.masked_bias')] # ignore these
+        keys = [k for k in keys if k not in ['transformer.wte.weight', 'transformer.wpe.weight']] # we don't have tokens and positional encoding
         sd_keys = [k for k in sd if not k.endswith('.attn.bias')] # ignore these, because not in huggingface model
         transposed = ['attn.c_attn.weight', 'attn.c_proj.weight', 'mlp.c_fc.weight', 'mlp.c_proj.weight']
         # basically the openai checkpoints use a "Conv1D" module, but we only want to use a vanilla nn.Linear.
