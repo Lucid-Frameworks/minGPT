@@ -114,8 +114,8 @@ def main(args):
     ]
     numerical_features = [
         "promotion",
-        # "oil price",
-        # "past sales",
+        "oil price",
+        "past sales",
     ]
 
     features = categorical_features + numerical_features
@@ -125,8 +125,8 @@ def main(args):
     df_train = df_train_full[df_train_full["date"] <= "2017-07-30"].reset_index()
     df_val = df_train_full[df_train_full["date"] >= "2017-07-31"].reset_index()
 
-    features_embeds_train = get_column_embeddings(df_train, categorical_features, numerical_features, number_of_cols=4)
-    features_embeds_val = get_column_embeddings(df_val, categorical_features, numerical_features, number_of_cols=4)
+    features_embeds_train = get_column_embeddings(df_train, categorical_features, numerical_features, number_of_cols=6)
+    features_embeds_val = get_column_embeddings(df_val, categorical_features, numerical_features, number_of_cols=6)
 
     max_length = len(features)
 
@@ -146,7 +146,6 @@ def main(args):
     else:
         model_config = tabGPT.get_default_config()
         model_config.model_type = 'gpt-nano'
-        # model_config.model_type = 'gpt2'
         model_config.vocab_size = 50257 # openai's model vocabulary
         model_config.block_size = max_length # 1024 is openai's model block_size
         model_config.n_output_nodes = 1

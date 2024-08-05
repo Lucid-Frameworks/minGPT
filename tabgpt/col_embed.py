@@ -22,15 +22,17 @@ def get_column_embeddings(df, categorical_features, numerical_features, number_o
     cat_features_embeds = torch.empty(len(df), 1, 768)
     for col in categorical_features:
     # for col in categorical_features + numerical_features:
-        input_ids = tokenizer(col, return_tensors="pt", truncation=True)
-        colname_embed = model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu().detach()
+        input_ids = tokenizer(col, return_tensors="pt")
+        with torch.no_grad():
+            colname_embed = model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu()
 
         df[col] = df[col].astype(str)
         col_embeds = torch.empty(1, 768)
         col_values = df[col].tolist()
         for i in range(len(col_values)):
-            input_ids = tokenizer(col_values[i], return_tensors="pt", truncation=True)
-            col_embeds = torch.cat((col_embeds, model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu().detach()))
+            input_ids = tokenizer(col_values[i], return_tensors="pt")
+            with torch.no_grad():
+                col_embeds = torch.cat((col_embeds, model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu()))
         col_embeds = col_embeds[1:]
 
         col_embeds = colname_embed.repeat(len(df), 1) + col_embeds
@@ -42,8 +44,9 @@ def get_column_embeddings(df, categorical_features, numerical_features, number_o
     # return cat_features_embeds
     num_features_embeds = torch.empty(len(df), 1, 768)
     for col in numerical_features:
-        input_ids = tokenizer(col, return_tensors="pt", truncation=True)
-        colname_embed = model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu().detach()
+        input_ids = tokenizer(col, return_tensors="pt")
+        with torch.no_grad():
+            colname_embed = model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu()
 
         col_embeds = colname_embed.repeat(len(df), 1)
         col_embeds = col_embeds * torch.tensor(df[col].values, dtype=torch.float32).unsqueeze(1)
