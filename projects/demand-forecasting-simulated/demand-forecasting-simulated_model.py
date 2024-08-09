@@ -70,7 +70,7 @@ def predict(model, dataloader, df):
 
 
 def get_data_simulated_low_sales():
-    df_train = pd.read_parquet("C:/Users/70Q1985/Downloads/train_low.parquet.gzip")
+    df_train = pd.read_parquet("train_low.parquet.gzip")
     df_train.rename(
         columns={
             "P_ID": "product id",
@@ -119,7 +119,7 @@ def get_data_simulated_low_sales():
 
 
 def get_data_simulated_high_sales():
-    df_train = pd.read_parquet("C:/Users/70Q1985/Downloads/train_high.parquet.gzip")
+    df_train = pd.read_parquet("train_high.parquet.gzip")
     df_train.rename(
         columns={
             "P_ID": "product id",
@@ -204,35 +204,59 @@ def main(args):
         number_of_cols=12,
     )
 
-    features_embeds_train = torch.cat(
-        (
-            features_embeds_train_sim_low,
-            features_embeds_train_sim_high,
-        ),
-        dim=0,
-    )
+    if args and args[0] == "--mode":
+        mode = args[1]
+    else:
+        mode = "train_together"
 
-    max_length = len(features)
+    if mode == "train_together":
+        features_embeds_train = torch.cat(
+            (
+                features_embeds_train_sim_low,
+                features_embeds_train_sim_high,
+            ),
+            dim=0,
+        )
 
-    targets_train = (
-        df_train_sim_low["target"].tolist() + df_train_sim_high["target"].tolist()
-    )
+        max_length = len(features) + 2
+
+        targets_train = (
+            df_train_sim_low["target"].tolist() + df_train_sim_high["target"].tolist()
+        )
+
+        train_dataset = TensorDataset(
+            features_embeds_train, torch.tensor(targets_train, dtype=torch.float32)
+        )
+
+    elif mode == "train_low":
+        features_embeds_train = features_embeds_train_sim_low
+
+        max_length = len(features) + 1
+
+        targets_train = df_train_sim_low["target"].tolist()
+
+    elif mode == "train_high":
+        features_embeds_train = features_embeds_train_sim_high
+
+        max_length = len(features) + 1
+
+        targets_train = df_train_sim_high["target"].tolist()
+
+    else:
+        raise Exception("invalid mode")
 
     train_dataset = TensorDataset(
         features_embeds_train, torch.tensor(targets_train, dtype=torch.float32)
     )
 
     # tabGPT model
-    if args and args[0] == "--pretrained":
-        model = tabGPT.from_pretrained("gpt2", 1)
-    else:
-        model_config = tabGPT.get_default_config()
-        model_config.model_type = "gpt-nano"
-        # model_config.model_type = 'gpt2'
-        model_config.vocab_size = 50257  # openai's model vocabulary
-        model_config.block_size = max_length  # 1024 is openai's model block_size
-        model_config.n_output_nodes = 1
-        model = tabGPT(model_config)
+    model_config = tabGPT.get_default_config()
+    model_config.model_type = "gpt-nano"
+    # model_config.model_type = 'gpt2'
+    model_config.vocab_size = 50257  # openai's model vocabulary
+    model_config.block_size = max_length  # 1024 is openai's model block_size
+    model_config.n_output_nodes = 1
+    model = tabGPT(model_config)
 
     # create a Trainer object
     train_config = Trainer.get_default_config()
