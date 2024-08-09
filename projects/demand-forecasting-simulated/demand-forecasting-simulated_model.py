@@ -3,8 +3,6 @@ import sys
 import pandas as pd
 import numpy as np
 from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
 
 import torch
 from torch.utils.data import TensorDataset, DataLoader
@@ -22,23 +20,6 @@ if torch.cuda.is_available():
 else:
     print("No GPU available, using the CPU instead.")
     device = torch.device("cpu")
-
-
-def plot_timeseries(df, suffix, include_preds=False):
-    if include_preds:
-        ts = df.groupby(["Date"])[["sales", "yhat"]].sum().reset_index()
-    else:
-        ts = df.groupby(["Date"])["sales"].sum().reset_index()
-    plt.figure()
-    ts.index = ts["Date"]
-    ts["sales"].plot(style="r", label="sales")
-    if include_preds:
-        ts["yhat"].plot(style="b-.", label="predictions")
-    plt.legend(fontsize=15)
-    plt.ylabel("sum", fontsize=15)
-    plt.tight_layout()
-    plt.savefig("ts_{}.png".format(suffix))
-    plt.clf()
 
 
 def evaluation(y, yhat):
@@ -256,13 +237,11 @@ def main(args):
         model, DataLoader(test_dataset_sim_low, batch_size=32), df_test_sim_low
     )
     evaluation(df_test_results_sim_low["SALES"].iloc[:1000], df_test_sim_low["yhat"])
-    plot_timeseries(df_test_sim_low, "test", True)
 
     df_test_sim_high = predict(
         model, DataLoader(test_dataset_sim_high, batch_size=32), df_test_sim_high
     )
     evaluation(df_test_results_sim_high["SALES"].iloc[:1000], df_test_sim_high["yhat"])
-    plot_timeseries(df_test_sim_high, "test", True)
 
     embed()
 
