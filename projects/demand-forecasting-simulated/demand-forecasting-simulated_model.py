@@ -2,7 +2,7 @@ import sys
 
 import pandas as pd
 import numpy as np
-from sklearn.metrics import root_mean_squared_log_error
+from sklearn.metrics import mean_squared_error
 from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 
@@ -26,12 +26,12 @@ else:
 
 def plot_timeseries(df, suffix, include_preds=False):
     if include_preds:
-        ts = df.groupby(["date"])[["target", "yhat"]].sum().reset_index()
+        ts = df.groupby(["Date"])[["sales", "yhat"]].sum().reset_index()
     else:
-        ts = df.groupby(["date"])["target"].sum().reset_index()
+        ts = df.groupby(["Date"])["sales"].sum().reset_index()
     plt.figure()
-    ts.index = ts["date"]
-    ts["target"].plot(style="r", label="target")
+    ts.index = ts["Date"]
+    ts["sales"].plot(style="r", label="sales")
     if include_preds:
         ts["yhat"].plot(style="b-.", label="predictions")
     plt.legend(fontsize=15)
@@ -41,14 +41,8 @@ def plot_timeseries(df, suffix, include_preds=False):
     plt.clf()
 
 
-def backtransform(df):
-    df["yhat"] = np.exp(df["yhat"]) - 1
-    df["target"] = np.exp(df["target"]) - 1
-    return df
-
-
 def evaluation(y, yhat):
-    print("RMSLE: ", root_mean_squared_log_error(y, yhat))
+    print("MSE: ", mean_squared_error(y, yhat))
     print("mean(y): ", np.mean(y))
 
 
@@ -65,13 +59,12 @@ def predict(model, dataloader, df):
 
     df["yhat"] = yhat
     df["yhat"] = np.clip(df["yhat"], 0, None)
-    df = backtransform(df)
+
     return df
 
 
-def get_data_simulated_low_sales():
-    df_train = pd.read_parquet("train_low.parquet.gzip")
-    df_train.rename(
+def data_preparation(df):
+    df.rename(
         columns={
             "P_ID": "product id",
             "PG_ID_3": "product group 3 id",
@@ -87,14 +80,12 @@ def get_data_simulated_low_sales():
         inplace=True,
     )
 
-    df_train["DATE"] = pd.to_datetime(df_train["DATE"])
+    df["DATE"] = pd.to_datetime(df["DATE"])
 
-    df_train["month"] = df_train["DATE"].dt.month_name(locale="English")
-    df_train["year"] = df_train["DATE"].dt.year
-    df_train["day_of_week"] = df_train["DATE"].dt.day_name()
-    df_train.drop(["DATE"], axis=1, inplace=True)
-
-    df_train["target"] = np.log(1 + df_train["sales"])
+    df["month"] = df["DATE"].dt.month_name(locale="English")
+    df["year"] = df["DATE"].dt.year
+    df["day_of_week"] = df["DATE"].dt.day_name()
+    df.drop(["DATE"], axis=1, inplace=True)
 
     categorical_features = [
         "product id",
@@ -112,80 +103,31 @@ def get_data_simulated_low_sales():
 
     features = categorical_features + numerical_features
 
-    df_train= df_train.iloc[:1000]
+    df= df.iloc[:1000]
 
-    df_train, df_val = train_test_split(df_train, test_size=0.2, random_state=666)
-    return (df_train, df_val, features, categorical_features, numerical_features)
-
-
-def get_data_simulated_high_sales():
-    df_train = pd.read_parquet("train_high.parquet.gzip")
-    df_train.rename(
-        columns={
-            "P_ID": "product id",
-            "PG_ID_3": "product group 3 id",
-            "PG_ID_2": "product group 2 id",
-            "PG_ID_1": "product group 1 id",
-            "NORMAL_PRICE": "normal price",
-            "L_ID": "location id",
-            "SALES_AREA": "sales area",
-            "PROMOTION_TYPE": "type of promotion",
-            "SALES_PRICE": "sales price",
-            "SALES": "sales",
-        },
-        inplace=True,
-    )
-
-    df_train["DATE"] = pd.to_datetime(df_train["DATE"])
-
-    df_train["month"] = df_train["DATE"].dt.month_name(locale="English")
-    df_train["year"] = df_train["DATE"].dt.year
-    df_train["day_of_week"] = df_train["DATE"].dt.day_name()
-    df_train.drop(["DATE"], axis=1, inplace=True)
-
-    df_train["target"] = np.log(1 + df_train["sales"])
-
-    categorical_features = [
-        "product id",
-        "product group 3 id",
-        "product group 2 id",
-        "product group 1 id",
-        "location id",
-        "type of promotion",
-        "month",
-        "year",
-        "day_of_week",
-    ]
-
-    numerical_features = ["normal price", "sales area", "sales price"]
-
-    features = categorical_features + numerical_features
-
-    df_train= df_train.iloc[:1000]
-
-    df_train, df_val = train_test_split(df_train, test_size=0.2, random_state=666)
-    return (df_train, df_val, features, categorical_features, numerical_features)
+    return (df, features, categorical_features, numerical_features)
 
 
 def main(args):
     np.random.seed(666)
     torch.manual_seed(42)
 
+    df_train_sim_low = pd.read_parquet("train_low.parquet.gzip")
+    df_train_sim_high = pd.read_parquet("train_high.parquet.gzip")
+
     (
         df_train_sim_low,
-        df_val_sim_low,
         features_sim_low,
         categorical_features_sim_low,
         numerical_features_sim_low,
-    ) = get_data_simulated_low_sales()
+    ) = data_preparation(df_train_sim_low)
 
     (
         df_train_sim_high,
-        df_val_sim_high,
         features_sim_high,
         categorical_features_sim_high,
         numerical_features_sim_high,
-    ) = get_data_simulated_high_sales()
+    ) = data_preparation(df_train_sim_high)
 
     features = features_sim_low + features_sim_high
 
@@ -221,7 +163,7 @@ def main(args):
         max_length = len(features) + 2
 
         targets_train = (
-            df_train_sim_low["target"].tolist() + df_train_sim_high["target"].tolist()
+            df_train_sim_low["sales"].tolist() + df_train_sim_high["sales"].tolist()
         )
 
         train_dataset = TensorDataset(
@@ -233,14 +175,14 @@ def main(args):
 
         max_length = len(features) + 1
 
-        targets_train = df_train_sim_low["target"].tolist()
+        targets_train = df_train_sim_low["sales"].tolist()
 
     elif mode == "train_high":
         features_embeds_train = features_embeds_train_sim_high
 
         max_length = len(features) + 1
 
-        targets_train = df_train_sim_high["target"].tolist()
+        targets_train = df_train_sim_high["sales"].tolist()
 
     else:
         raise Exception("invalid mode")
@@ -277,42 +219,50 @@ def main(args):
     trainer.run()
 
     # inference
-    features_embeds_val_sim_low = get_column_embeddings(
-        df_val_sim_low,
+    df_test_sim_low = pd.read_parquet("test_low.parquet.gzip")
+    df_test_sim_high = pd.read_parquet("test_high.parquet.gzip")
+    df_test_results_sim_low = pd.read_parquet("test_results_low.parquet.gzip")
+    df_test_results_sim_high = pd.read_parquet("test_results_high.parquet.gzip")
+
+    (df_test_sim_low, _, _, _,) = data_preparation(df_test_sim_low)
+    (df_test_sim_high, _, _, _) = data_preparation(df_test_sim_high)
+
+    features_embeds_test_sim_low = get_column_embeddings(
+        df_test_sim_low,
         "low sales",
         categorical_features_sim_low,
         numerical_features_sim_low,
         number_of_cols=12,
     )
-    features_embeds_val_sim_high = get_column_embeddings(
-        df_val_sim_high,
+    features_embeds_test_sim_high = get_column_embeddings(
+        df_test_sim_high,
         "high sales",
         categorical_features_sim_high,
         numerical_features_sim_high,
         number_of_cols=12,
     )
 
-    val_dataset_sim_low = TensorDataset(
-        features_embeds_val_sim_low,
-        torch.tensor(df_val_sim_low["target"].tolist(), dtype=torch.float32),
+    test_dataset_sim_low = TensorDataset(
+        features_embeds_test_sim_low,
+        torch.tensor(df_test_results_sim_low["SALES"].iloc[:1000].tolist(), dtype=torch.float32),
     )
 
-    val_dataset_sim_high = TensorDataset(
-        features_embeds_val_sim_high,
-        torch.tensor(df_val_sim_high["target"].tolist(), dtype=torch.float32),
+    test_dataset_sim_high = TensorDataset(
+        features_embeds_test_sim_high,
+        torch.tensor(df_test_results_sim_high["SALES"].iloc[:1000].tolist(), dtype=torch.float32),
     )
 
-    df_val_sim_low = predict(
-        model, DataLoader(val_dataset_sim_low, batch_size=32), df_val_sim_low
+    df_test_sim_low = predict(
+        model, DataLoader(test_dataset_sim_low, batch_size=32), df_test_sim_low
     )
-    evaluation(df_val_sim_low["target"], df_val_sim_low["yhat"])
-    plot_timeseries(df_val_sim_low, "val", True)
+    evaluation(df_test_results_sim_low["SALES"].iloc[:1000], df_test_sim_low["yhat"])
+    plot_timeseries(df_test_sim_low, "test", True)
 
-    df_val_sim_high = predict(
-        model, DataLoader(val_dataset_sim_high, batch_size=32), df_val_sim_high
+    df_test_sim_high = predict(
+        model, DataLoader(test_dataset_sim_high, batch_size=32), df_test_sim_high
     )
-    evaluation(df_val_sim_high["target"], df_val_sim_high["yhat"])
-    plot_timeseries(df_val_sim_high, "val", True)
+    evaluation(df_test_results_sim_high["SALES"].iloc[:1000], df_test_sim_high["yhat"])
+    plot_timeseries(df_test_sim_high, "test", True)
 
     embed()
 

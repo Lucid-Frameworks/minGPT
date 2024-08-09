@@ -77,6 +77,7 @@ def get_data_store_sales():
     df_train_full = df_train_full.merge(df_oil, on="date", how="left")
 
     df_train_full['dayofweek'] = pd.to_datetime(df_train_full['date']).dt.dayofweek
+    # df_train_full['dayofweek'] = pd.to_datetime(df_train_full['date']).dt.day_name()
     df_train_full["target"] = np.log(1 + df_train_full["sales"])
 
     def ewma_prediction(df, group_cols, col, alpha, horizon, suffix=''):

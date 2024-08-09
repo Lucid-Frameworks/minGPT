@@ -52,6 +52,7 @@ def evaluation(y, yhat):
 
 def data_preparation(df):
     df['dayofweek'] = pd.to_datetime(df['date']).dt.dayofweek
+    # df['dayofweek'] = pd.to_datetime(df['date']).dt.day_name()
 
     df["sales_transformed"] = np.log(1 + df["sales"])
 
