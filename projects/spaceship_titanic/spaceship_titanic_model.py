@@ -99,10 +99,10 @@ def main(pretrained):
     df_val = df_train_full.loc[df_train_full["group"].isin(validation_groups)]
     df_train = df_train_full.loc[~df_train_full["group"].isin(validation_groups)]
 
-    features_embeds_train = get_column_embeddings(df_train, categorical_features, numerical_features, number_of_cols=16)
-    features_embeds_val = get_column_embeddings(df_val, categorical_features, numerical_features, number_of_cols=16)
+    features_embeds_train = get_column_embeddings(df_train, "spaceship titanic", categorical_features, numerical_features, number_of_cols=16)
+    features_embeds_val = get_column_embeddings(df_val, "spaceship titanic", categorical_features, numerical_features, number_of_cols=16)
 
-    max_length = len(features)
+    max_length = len(features) + 1
 
     train_dataset = TensorDataset(
         features_embeds_train, 

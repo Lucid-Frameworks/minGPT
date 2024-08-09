@@ -95,14 +95,14 @@ def main(pretrained, enrich):
 
     df_train, df_val = train_test_split(df_train_full, test_size=0.2, random_state=666)
 
-    features_embeds_train = get_column_embeddings(df_train, categorical_features, numerical_features)
+    features_embeds_train = get_column_embeddings(df_train, "house prices", categorical_features, numerical_features)
 
     train_dataset = TensorDataset(
         features_embeds_train, 
         torch.tensor(df_train["SalePrice_transformed"].tolist(), dtype=torch.float32)
         )
 
-    max_length = len(features)
+    max_length = len(features) + 1
 
     # tabGPT model
     if pretrained:
@@ -134,7 +134,7 @@ def main(pretrained, enrich):
     df_train = predict(model, DataLoader(train_dataset, batch_size=32), df_train)
     evaluation(df_train["SalePrice"], df_train["yhat"])
 
-    features_embeds_val = get_column_embeddings(df_val, categorical_features, numerical_features)
+    features_embeds_val = get_column_embeddings(df_val, "house prices", categorical_features, numerical_features)
     val_dataset = TensorDataset(
         features_embeds_val, 
         torch.tensor(df_val["SalePrice_transformed"].tolist(), dtype=torch.float32)

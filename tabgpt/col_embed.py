@@ -11,8 +11,9 @@ else:
     device = torch.device("cpu")
 
 
-def get_column_embeddings(df, categorical_features, numerical_features, number_of_cols=10):
-    number_of_features = len(categorical_features + numerical_features)
+def get_column_embeddings(df, target_name, categorical_features, numerical_features, number_of_cols=10):
+    number_of_features = len(categorical_features + numerical_features) + 1
+    number_of_cols += 1
     assert number_of_features <= number_of_cols, "total number of features must not be larger than set number_of_cols"
 
     model = GPT2Model.from_pretrained("gpt2").to(device)
@@ -55,7 +56,17 @@ def get_column_embeddings(df, categorical_features, numerical_features, number_o
         num_features_embeds = torch.cat((num_features_embeds, col_embeds), dim=1)
     num_features_embeds = num_features_embeds[:, 1:, :]
 
-    features_embeds = torch.cat((cat_features_embeds, num_features_embeds), dim=1)
+    input_ids = tokenizer(target_name, return_tensors="pt")
+    with torch.no_grad():
+        target_embed = model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu()
+
+    target_embed = target_embed.repeat(len(df), 1, 1) # nrows, 1, emb_dim
+
+    features_embeds_wo_pos = torch.cat((target_embed, cat_features_embeds, num_features_embeds), dim=1)
+    rows, features, emb_dim = features_embeds_wo_pos.shape
+    features_embeds = torch.zeros(rows, features, emb_dim)
+    features_embeds[:, 1:, :] = 1.
+    features_embeds += features_embeds_wo_pos
 
     if number_of_features < number_of_cols:
         padding_features_embeds = torch.empty(len(df), number_of_cols - number_of_features, 768)

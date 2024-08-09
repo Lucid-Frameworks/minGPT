@@ -125,10 +125,10 @@ def main(args):
     df_train = df_train_full[df_train_full["date"] <= "2017-07-30"].reset_index()
     df_val = df_train_full[df_train_full["date"] >= "2017-07-31"].reset_index()
 
-    features_embeds_train = get_column_embeddings(df_train, categorical_features, numerical_features, number_of_cols=6)
-    features_embeds_val = get_column_embeddings(df_val, categorical_features, numerical_features, number_of_cols=6)
+    features_embeds_train = get_column_embeddings(df_train, "store sales", categorical_features, numerical_features, number_of_cols=6)
+    features_embeds_val = get_column_embeddings(df_val, "store sales", categorical_features, numerical_features, number_of_cols=6)
 
-    max_length = len(features)
+    max_length = len(features) + 1
 
     train_dataset = TensorDataset(
         features_embeds_train, 

@@ -157,12 +157,12 @@ def main(args):
 
     features = features_store_sales + features_house_prices
 
-    features_embeds_train_store_sales = get_column_embeddings(df_train_store_sales, categorical_features_store_sales, numerical_features_store_sales)
-    features_embeds_train_house_prices = get_column_embeddings(df_train_house_prices, categorical_features_house_prices, numerical_features_house_prices)
+    features_embeds_train_store_sales = get_column_embeddings(df_train_store_sales, "store sales", categorical_features_store_sales, numerical_features_store_sales)
+    features_embeds_train_house_prices = get_column_embeddings(df_train_house_prices, "house prices", categorical_features_house_prices, numerical_features_house_prices)
 
     features_embeds_train = torch.cat((features_embeds_train_store_sales, features_embeds_train_house_prices), dim=0)
 
-    max_length = len(features)
+    max_length = len(features) + 2
 
     targets_train = df_train_store_sales["target"].tolist() + df_train_house_prices["target"].tolist()
 
@@ -199,8 +199,8 @@ def main(args):
     trainer.run()
 
     # inference
-    features_embeds_val_store_sales = get_column_embeddings(df_val_store_sales, categorical_features_store_sales, numerical_features_store_sales)
-    features_embeds_val_house_prices = get_column_embeddings(df_val_house_prices, categorical_features_house_prices, numerical_features_house_prices)
+    features_embeds_val_store_sales = get_column_embeddings(df_val_store_sales, "store sales", categorical_features_store_sales, numerical_features_store_sales)
+    features_embeds_val_house_prices = get_column_embeddings(df_val_house_prices, "house prices", categorical_features_house_prices, numerical_features_house_prices)
 
     val_dataset_store_sales = TensorDataset(
         features_embeds_val_store_sales, 
