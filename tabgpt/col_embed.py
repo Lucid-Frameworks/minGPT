@@ -29,14 +29,17 @@ def get_column_embeddings(df, target_name, categorical_features, numerical_featu
 
         df[col] = df[col].astype(str)
         col_embeds = torch.empty(1, 768)
-        col_values = df[col].tolist()
-        for i in range(len(col_values)):
-            input_ids = tokenizer(col_values[i], return_tensors="pt")
-            with torch.no_grad():
-                col_embeds = torch.cat((col_embeds, model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu()))
-        col_embeds = col_embeds[1:]
 
-        col_embeds = colname_embed.repeat(len(df), 1) + col_embeds
+        col_value_dict = {}
+        for col_value in df[col].unique().tolist():
+            input_ids = tokenizer(col_value, return_tensors="pt")
+            with torch.no_grad():
+                col_value_dict[col_value] = model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu()
+
+        for i in range(len(df)):            
+            col_embeds = torch.cat((col_embeds, col_value_dict[df[col].iloc[i]]))
+
+        col_embeds = colname_embed.repeat(len(df), 1) + col_embeds[1:]
         col_embeds = col_embeds.unsqueeze(1)
 
         cat_features_embeds = torch.cat((cat_features_embeds, col_embeds), dim=1)

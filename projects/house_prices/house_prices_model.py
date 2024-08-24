@@ -72,22 +72,33 @@ def main(pretrained, enrich):
     else:
         # use data from Kaggle competition https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques
         df_train_full = pd.read_csv("train.csv")
-        categorical_features = [
-            "OverallQual",
-            "ExterQual",
-            "Neighborhood",
-            "BsmtQual",
-            "YearBuilt",
-            "KitchenQual",
-        ]
-        numerical_features = [
-            "GarageCars",
-            "GrLivArea",
-            "GarageArea",
-            "TotalBsmtSF"            
-        ]
+        # categorical_features = [
+        #     "OverallQual",
+        #     "ExterQual",
+        #     "Neighborhood",
+        #     "BsmtQual",
+        #     "YearBuilt",
+        #     "KitchenQual",
+        # ]
+        # numerical_features = [
+        #     "GarageCars",
+        #     "GrLivArea",
+        #     "GarageArea",
+        #     "TotalBsmtSF"            
+        # ]
+        categorical_features = []
+        numerical_features = []
+        for col in df_train_full.drop(columns=["Id", "SalePrice"]).columns:
+            if len(df_train_full[col].unique()) < 2:
+                print(f"exclude column {col} with only one unique value")
+            elif df_train_full[col].dtype == 'O':
+                categorical_features.append(col)
+            else:
+                numerical_features.append(col)
 
     features = categorical_features + numerical_features
+
+    df_train_full = df_train_full.fillna(-999)
 
     df_train_full["SalePrice_transformed"] = np.log(1 + df_train_full["SalePrice"])
 
@@ -95,7 +106,7 @@ def main(pretrained, enrich):
 
     df_train, df_val = train_test_split(df_train_full, test_size=0.2, random_state=666)
 
-    features_embeds_train = get_column_embeddings(df_train, "house prices", categorical_features, numerical_features)
+    features_embeds_train = get_column_embeddings(df_train, "house prices", categorical_features, numerical_features, number_of_cols=len(features))
 
     train_dataset = TensorDataset(
         features_embeds_train, 
@@ -134,7 +145,7 @@ def main(pretrained, enrich):
     df_train = predict(model, DataLoader(train_dataset, batch_size=32), df_train)
     evaluation(df_train["SalePrice"], df_train["yhat"])
 
-    features_embeds_val = get_column_embeddings(df_val, "house prices", categorical_features, numerical_features)
+    features_embeds_val = get_column_embeddings(df_val, "house prices", categorical_features, numerical_features, number_of_cols=len(features))
     val_dataset = TensorDataset(
         features_embeds_val, 
         torch.tensor(df_val["SalePrice_transformed"].tolist(), dtype=torch.float32)
