@@ -49,52 +49,35 @@ def predict(model, dataloader, df):
     return df
 
 
-def main(pretrained, enrich):
+def main(test, pretrained, enrich):
     np.random.seed(666)
     torch.manual_seed(42)
 
+    # use data from Kaggle competition https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques
+    df_train_full = pd.read_csv("train.csv")
+
+    important_cols = ["OverallQual", "GarageCars", "ExterQual", "Neighborhood", "GrLivArea", "GarageArea", "BsmtQual", "YearBuilt", "KitchenQual", "TotalBsmtSF"]
+    important_cols.append('Id')
+    important_cols.append('SalePrice')
+    df_train_full = df_train_full[important_cols]
+
     if enrich:
-        df_train_full = construct_text()
-        categorical_features = [
-            "Overall material and finish of the house",
-            "Quality of the material on the exterior",
-            "Physical locations within Ames city limits",
-            "Height of the basement",
-            "Original construction date",
-            "Kitchen quality",
-        ]
-        numerical_features = [
-            "Size of garage in car capacity",
-            "Above grade (ground) living area square feet",
-            "Size of garage in square feet",
-            "Total square feet of basement area"            
-        ]
-    else:
-        # use data from Kaggle competition https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques
-        df_train_full = pd.read_csv("train.csv")
-        # categorical_features = [
-        #     "OverallQual",
-        #     "ExterQual",
-        #     "Neighborhood",
-        #     "BsmtQual",
-        #     "YearBuilt",
-        #     "KitchenQual",
-        # ]
-        # numerical_features = [
-        #     "GarageCars",
-        #     "GrLivArea",
-        #     "GarageArea",
-        #     "TotalBsmtSF"            
-        # ]
-        categorical_features = []
-        numerical_features = []
-        for col in df_train_full.drop(columns=["Id", "SalePrice"]).columns:
-            if len(df_train_full[col].unique()) < 2:
-                print(f"exclude column {col} with only one unique value")
-            elif df_train_full[col].dtype == 'O':
-                categorical_features.append(col)
-            else:
-                numerical_features.append(col)
+        df_train_full = construct_text(df_train_full)
+
+    categorical_features = []
+    numerical_features = []
+    for col in df_train_full.drop(columns=["Id", "SalePrice"]).columns:
+        if len(df_train_full[col].unique()) < 2:
+            print(f"exclude column {col} with only one unique value")
+        elif df_train_full[col].dtype == 'O':
+            categorical_features.append(col)
+        elif col in ["YearBuilt", "Original construction date",
+                     "YearRemodAdd", "Remodel date (same as construction date if no remodeling or additions)",
+                     "GarageYrBlt", "Year garage was built",
+                     "YrSold", "Year Sold (YYYY)"]:
+            categorical_features.append(col)
+        else:
+            numerical_features.append(col)
 
     features = categorical_features + numerical_features
 
@@ -104,7 +87,16 @@ def main(pretrained, enrich):
 
     df_train_full = df_train_full[['Id', 'SalePrice', 'SalePrice_transformed'] + features]
 
-    df_train, df_val = train_test_split(df_train_full, test_size=0.2, random_state=666)
+    if test:
+        df_test = pd.read_csv("test.csv")
+        df_test = df_test[important_cols[:-1]]
+        if enrich:
+            df_test = construct_text(df_test)       
+        df_test = df_test.fillna(-999)
+        df_test = df_test[['Id'] + features]
+        df_train = df_train_full
+    else:
+        df_train, df_test = train_test_split(df_train_full, test_size=0.2, random_state=666)
 
     features_embeds_train = get_column_embeddings(df_train, "house prices", categorical_features, numerical_features, number_of_cols=len(features))
 
@@ -120,7 +112,7 @@ def main(pretrained, enrich):
         model = tabGPT.from_pretrained('gpt2', 1)
     else:
         model_config = tabGPT.get_default_config()
-        model_config.model_type = 'gpt-nano'
+        model_config.model_type = 'gpt-micro'
         model_config.vocab_size = 50257 # openai's model vocabulary
         model_config.block_size = max_length # 1024 is openai's model block_size
         model_config.n_output_nodes = 1
@@ -129,7 +121,7 @@ def main(pretrained, enrich):
     # create a Trainer object
     train_config = Trainer.get_default_config()
     train_config.max_iters = 10000
-    train_config.epochs = 50
+    train_config.epochs = 400
     train_config.num_workers = 0
     train_config.batch_size = 32
     trainer = Trainer(train_config, model, train_dataset)
@@ -145,20 +137,32 @@ def main(pretrained, enrich):
     df_train = predict(model, DataLoader(train_dataset, batch_size=32), df_train)
     evaluation(df_train["SalePrice"], df_train["yhat"])
 
-    features_embeds_val = get_column_embeddings(df_val, "house prices", categorical_features, numerical_features, number_of_cols=len(features))
-    val_dataset = TensorDataset(
-        features_embeds_val, 
-        torch.tensor(df_val["SalePrice_transformed"].tolist(), dtype=torch.float32)
+    features_embeds_val = get_column_embeddings(df_test, "house prices", categorical_features, numerical_features, number_of_cols=len(features))
+
+    if test:
+        test_dataset = TensorDataset(
+            features_embeds_val,
+            torch.tensor(df_test["Id"].tolist(), dtype=torch.float32)
         )
-    df_val = predict(model, DataLoader(val_dataset, batch_size=32), df_val)
-    evaluation(df_val["SalePrice"], df_val["yhat"])
+    else:
+        test_dataset = TensorDataset(
+            features_embeds_val, 
+            torch.tensor(df_test["SalePrice_transformed"].tolist(), dtype=torch.float32)
+        )
+    
+    df_test = predict(model, DataLoader(test_dataset, batch_size=32), df_test)
+    if test:
+        df_test = df_test[["Id", "yhat"]].rename(columns={"yhat": "SalePrice"}).to_csv("submission.csv", index=False)
+    else:
+        evaluation(df_test["SalePrice"], df_test["yhat"])
 
     embed()
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument("--test", action="store_true")
     parser.add_argument("--pretrained", action="store_true")
     parser.add_argument("--enrich", action="store_true")
     args = parser.parse_args()
-    main(args.pretrained, args.enrich)
+    main(args.test, args.pretrained, args.enrich)

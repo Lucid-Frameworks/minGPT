@@ -12,7 +12,8 @@ else:
 
 
 def get_column_embeddings(df, target_name, categorical_features, numerical_features, number_of_cols=10):
-    number_of_features = len(categorical_features + numerical_features) + 1
+    features = categorical_features + numerical_features
+    number_of_features = len(features) + 1
     number_of_cols += 1
     assert number_of_features <= number_of_cols, "total number of features must not be larger than set number_of_cols"
 
@@ -20,52 +21,57 @@ def get_column_embeddings(df, target_name, categorical_features, numerical_featu
     model.eval()
     tokenizer = AutoTokenizer.from_pretrained("gpt2")
 
-    cat_features_embeds = torch.empty(len(df), 1, 768)
-    for col in categorical_features:
-    # for col in categorical_features + numerical_features:
+    inputs_embeds = torch.empty(len(df), 1, 768)
+
+    for col in features:
         input_ids = tokenizer(col, return_tensors="pt")
         with torch.no_grad():
             colname_embed = model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu()
+        colname_embed = colname_embed.repeat(len(df), 1)
 
-        df[col] = df[col].astype(str)
-        col_embeds = torch.empty(1, 768)
+        if col in categorical_features:
+            cat_embed_dict = {}
+            for category in df[col].unique().tolist():
+                input_ids = tokenizer(str(category), return_tensors="pt")
+                with torch.no_grad():
+                    cat_embed_dict[category] = model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu()
 
-        col_value_dict = {}
-        for col_value in df[col].unique().tolist():
-            input_ids = tokenizer(col_value, return_tensors="pt")
-            with torch.no_grad():
-                col_value_dict[col_value] = model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu()
+            cat_embeds = torch.empty(1, 768)
+            for i in range(len(df)):            
+                cat_embeds = torch.cat((cat_embeds, cat_embed_dict[df[col].iloc[i]]))
 
-        for i in range(len(df)):            
-            col_embeds = torch.cat((col_embeds, col_value_dict[df[col].iloc[i]]))
+            col_embeds = colname_embed + cat_embeds[1:]
+        else:
+            col_values = torch.tensor(df[col].values, dtype=torch.float32).unsqueeze(1)
 
-        col_embeds = colname_embed.repeat(len(df), 1) + col_embeds[1:]
-        col_embeds = col_embeds.unsqueeze(1)
+            null_treatment = "simple"
+            if null_treatment == "simple":
+                col_embeds = colname_embed * col_values
+            elif null_treatment == "shift":
+                col_embeds = colname_embed * torch.where(col_values >= 0, col_values + 1, col_values - 1)
+            else:
+                col_values = torch.where(col_values == 0, 1, col_values)
+                col_embeds = colname_embed * col_values
 
-        cat_features_embeds = torch.cat((cat_features_embeds, col_embeds), dim=1)
-    cat_features_embeds = cat_features_embeds[:, 1:, :]
+                input_ids = tokenizer(str(0), return_tensors="pt")
+                with torch.no_grad():
+                    cat0_embed = model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu()
+                cat_embeds = torch.zeros(len(df), 768)
+                for i in range(len(df)):
+                    if df[col].iloc[i] == 0:
+                        cat_embeds[i, :] = cat0_embed
+                col_embeds = col_embeds + cat_embeds
 
-    # return cat_features_embeds
-    num_features_embeds = torch.empty(len(df), 1, 768)
-    for col in numerical_features:
-        input_ids = tokenizer(col, return_tensors="pt")
-        with torch.no_grad():
-            colname_embed = model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu()
-
-        col_embeds = colname_embed.repeat(len(df), 1)
-        col_embeds = col_embeds * torch.tensor(df[col].values, dtype=torch.float32).unsqueeze(1)
-        col_embeds = col_embeds.unsqueeze(1)
-
-        num_features_embeds = torch.cat((num_features_embeds, col_embeds), dim=1)
-    num_features_embeds = num_features_embeds[:, 1:, :]
+        inputs_embeds = torch.cat((inputs_embeds, col_embeds.unsqueeze(1)), dim=1)
+    
+    inputs_embeds = inputs_embeds[:, 1:, :]
 
     input_ids = tokenizer(target_name, return_tensors="pt")
     with torch.no_grad():
         target_embed = model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu()
-
     target_embed = target_embed.repeat(len(df), 1, 1) # nrows, 1, emb_dim
 
-    features_embeds_wo_pos = torch.cat((target_embed, cat_features_embeds, num_features_embeds), dim=1)
+    features_embeds_wo_pos = torch.cat((target_embed, inputs_embeds), dim=1)
     rows, features, emb_dim = features_embeds_wo_pos.shape
     features_embeds = torch.zeros(rows, features, emb_dim)
     features_embeds[:, 1:, :] = 1.

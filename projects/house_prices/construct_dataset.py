@@ -1,7 +1,4 @@
-import pandas as pd
-
-
-def construct_text():
+def construct_text(df):
     subclass_mapping = {
         20: '1-STORY 1946 & NEWER ALL STYLES',
         30: '1-STORY 1945 & OLDER',
@@ -534,13 +531,6 @@ def construct_text():
         "SaleType": "Type of sale",
         "SaleCondition": "Condition of sale"
     }
-
-    df = pd.read_csv('train.csv')
-
-    important_cols = ["OverallQual", "GarageCars", "ExterQual", "Neighborhood", "GrLivArea", "GarageArea", "BsmtQual", "YearBuilt", "KitchenQual", "TotalBsmtSF"]
-    important_cols.append('SalePrice')
-    important_cols.append('Id')
-    df = df[important_cols]
 
     for col in df.columns:
         variable_name = f'{col.lower()}_mapping'
