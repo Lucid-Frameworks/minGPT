@@ -56,7 +56,17 @@ def main(test, pretrained, enrich):
     # use data from Kaggle competition https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques
     df_train_full = pd.read_csv("train.csv")
 
-    important_cols = ["OverallQual", "GarageCars", "ExterQual", "Neighborhood", "GrLivArea", "GarageArea", "BsmtQual", "YearBuilt", "KitchenQual", "TotalBsmtSF"]
+    important_cols = ["OverallQual",
+                      "GarageCars",
+                      "ExterQual",
+                      "Neighborhood",
+                      "GrLivArea",
+                      "GarageArea",
+                      "BsmtQual",
+                      "YearBuilt",
+                      "KitchenQual",
+                      "TotalBsmtSF",
+                      ]
     important_cols.append('Id')
     important_cols.append('SalePrice')
     df_train_full = df_train_full[important_cols]
@@ -67,21 +77,16 @@ def main(test, pretrained, enrich):
     categorical_features = []
     numerical_features = []
     for col in df_train_full.drop(columns=["Id", "SalePrice"]).columns:
-        if len(df_train_full[col].unique()) < 2:
-            print(f"exclude column {col} with only one unique value")
-        elif df_train_full[col].dtype == 'O':
+        if df_train_full[col].dtype == 'O':
             categorical_features.append(col)
-        elif col in ["YearBuilt", "Original construction date",
-                     "YearRemodAdd", "Remodel date (same as construction date if no remodeling or additions)",
-                     "GarageYrBlt", "Year garage was built",
-                     "YrSold", "Year Sold (YYYY)"]:
+        elif col in ["YearBuilt", "Original construction date"]:
             categorical_features.append(col)
         else:
             numerical_features.append(col)
 
     features = categorical_features + numerical_features
 
-    df_train_full = df_train_full.fillna(-999)
+    df_train_full[numerical_features] = df_train_full[numerical_features] / df_train_full[numerical_features].abs().max()
 
     df_train_full["SalePrice_transformed"] = np.log(1 + df_train_full["SalePrice"])
 
@@ -92,8 +97,8 @@ def main(test, pretrained, enrich):
         df_test = df_test[important_cols[:-1]]
         if enrich:
             df_test = construct_text(df_test)       
-        df_test = df_test.fillna(-999)
         df_test = df_test[['Id'] + features]
+        df_test[numerical_features] = df_test[numerical_features] / df_train_full[numerical_features].abs().max()
         df_train = df_train_full
     else:
         df_train, df_test = train_test_split(df_train_full, test_size=0.2, random_state=666)
@@ -101,7 +106,7 @@ def main(test, pretrained, enrich):
     features_embeds_train = get_column_embeddings(df_train, "house prices", categorical_features, numerical_features, number_of_cols=len(features))
 
     train_dataset = TensorDataset(
-        features_embeds_train, 
+        features_embeds_train,
         torch.tensor(df_train["SalePrice_transformed"].tolist(), dtype=torch.float32)
         )
 
@@ -120,16 +125,20 @@ def main(test, pretrained, enrich):
 
     # create a Trainer object
     train_config = Trainer.get_default_config()
-    train_config.max_iters = 10000
-    train_config.epochs = 400
+    train_config.max_iters = 1000000
+    train_config.epochs = 100
     train_config.num_workers = 0
     train_config.batch_size = 32
     trainer = Trainer(train_config, model, train_dataset)
 
-    def batch_end_callback(trainer):
-        if trainer.iter_num % 100 == 0:
-            print(f"iter_dt {trainer.iter_dt * 1000:.2f}ms; iter {trainer.iter_num}: train loss {trainer.loss.item():.5f}")
-    trainer.set_callback('on_batch_end', batch_end_callback)
+    # def batch_end_callback(trainer):
+    #     if trainer.iter_num % 100 == 0:
+    #         print(f"iter_dt {trainer.iter_dt * 1000:.2f}ms; iter {trainer.iter_num}: train loss {trainer.loss.item():.5f}")
+    # trainer.set_callback('on_batch_end', batch_end_callback)
+
+    def epoch_end_callback(trainer):
+        print(f"epoch {trainer.epoch}: train loss {np.sqrt(trainer.aggregated_loss.detach().cpu())}")
+    trainer.set_callback('on_epoch_end', epoch_end_callback)
 
     trainer.run()
 
@@ -146,10 +155,10 @@ def main(test, pretrained, enrich):
         )
     else:
         test_dataset = TensorDataset(
-            features_embeds_val, 
+            features_embeds_val,
             torch.tensor(df_test["SalePrice_transformed"].tolist(), dtype=torch.float32)
         )
-    
+
     df_test = predict(model, DataLoader(test_dataset, batch_size=32), df_test)
     if test:
         df_test = df_test[["Id", "yhat"]].rename(columns={"yhat": "SalePrice"}).to_csv("submission.csv", index=False)

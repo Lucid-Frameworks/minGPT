@@ -11,7 +11,9 @@ else:
     device = torch.device("cpu")
 
 
-def get_column_embeddings(df, target_name, categorical_features, numerical_features, number_of_cols=10):
+def get_column_embeddings(df, target_name, categorical_features, numerical_features,
+                          number_of_cols=10,
+                          null_treatment="zero-embedding", fillna_categorical="missing value", fillna_numerical=0):
     features = categorical_features + numerical_features
     number_of_features = len(features) + 1
     number_of_cols += 1
@@ -22,6 +24,9 @@ def get_column_embeddings(df, target_name, categorical_features, numerical_featu
     tokenizer = AutoTokenizer.from_pretrained("gpt2")
 
     inputs_embeds = torch.empty(len(df), 1, 768)
+
+    df[categorical_features] = df[categorical_features].fillna(fillna_categorical)
+    df[numerical_features] = df[numerical_features].fillna(fillna_numerical)
 
     for col in features:
         input_ids = tokenizer(col, return_tensors="pt")
@@ -44,12 +49,9 @@ def get_column_embeddings(df, target_name, categorical_features, numerical_featu
         else:
             col_values = torch.tensor(df[col].values, dtype=torch.float32).unsqueeze(1)
 
-            null_treatment = "simple"
-            if null_treatment == "simple":
-                col_embeds = colname_embed * col_values
-            elif null_treatment == "shift":
+            if null_treatment == "shift":
                 col_embeds = colname_embed * torch.where(col_values >= 0, col_values + 1, col_values - 1)
-            else:
+            elif null_treatment == "zero-embedding":
                 col_values = torch.where(col_values == 0, 1, col_values)
                 col_embeds = colname_embed * col_values
 
@@ -61,6 +63,10 @@ def get_column_embeddings(df, target_name, categorical_features, numerical_featu
                     if df[col].iloc[i] == 0:
                         cat_embeds[i, :] = cat0_embed
                 col_embeds = col_embeds + cat_embeds
+            elif "simple":
+                col_embeds = colname_embed * col_values
+            else:
+                raise ValueError
 
         inputs_embeds = torch.cat((inputs_embeds, col_embeds.unsqueeze(1)), dim=1)
     

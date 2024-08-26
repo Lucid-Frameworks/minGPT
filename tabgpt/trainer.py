@@ -78,7 +78,9 @@ class Trainer:
         self.iter_num = 0
         self.iter_time = time.time()
         data_iter = iter(train_loader)
-        for _ in range(config.epochs):
+        for epoch in range(config.epochs):
+            self.aggregated_loss = 0
+            self.iter_in_epoch = 0
             while True:
 
                 # fetch the next batch (x, y) and re-init iterator if needed
@@ -105,7 +107,13 @@ class Trainer:
                 tnow = time.time()
                 self.iter_dt = tnow - self.iter_time
                 self.iter_time = tnow
+                self.aggregated_loss += self.loss
+                self.iter_in_epoch += 1
 
                 # termination conditions
                 if config.max_iters is not None and self.iter_num >= config.max_iters:
                     break
+
+            self.aggregated_loss /= self.iter_in_epoch
+            self.epoch = epoch + 1
+            self.trigger_callbacks('on_epoch_end')

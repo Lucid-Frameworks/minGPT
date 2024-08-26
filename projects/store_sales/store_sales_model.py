@@ -121,8 +121,6 @@ def main(args):
 
     features = categorical_features + numerical_features
 
-    df_train_full = df_train_full.fillna(-999)
-
     df_train = df_train_full[df_train_full["date"] <= "2017-07-30"].reset_index()
     df_val = df_train_full[df_train_full["date"] >= "2017-07-31"].reset_index()
 
@@ -132,12 +130,12 @@ def main(args):
     max_length = len(features) + 1
 
     train_dataset = TensorDataset(
-        features_embeds_train, 
+        features_embeds_train,
         torch.tensor(df_train["sales_transformed"].tolist(), dtype=torch.float32)
         )
 
     val_dataset = TensorDataset(
-        features_embeds_val, 
+        features_embeds_val,
         torch.tensor(df_val["sales_transformed"].tolist(), dtype=torch.float32)
         )
 
@@ -154,7 +152,7 @@ def main(args):
 
     # create a Trainer object
     train_config = Trainer.get_default_config()
-    train_config.max_iters = 10000
+    train_config.max_iters = 1000000
     train_config.epochs = 50
     train_config.num_workers = 0
     train_config.batch_size = 32
