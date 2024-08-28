@@ -68,7 +68,6 @@ class Trainer:
         # setup the dataloader
         train_loader = DataLoader(
             self.train_dataset,
-            shuffle=True,
             pin_memory=True,
             batch_size=config.batch_size,
             num_workers=config.num_workers,
@@ -82,14 +81,14 @@ class Trainer:
             self.aggregated_loss = 0
             self.iter_in_epoch = 0
             while True:
-
+                end_of_epoch = False
                 # fetch the next batch (x, y) and re-init iterator if needed
                 try:
                     batch = next(data_iter)
                 except StopIteration:
                     data_iter = iter(train_loader)
                     batch = next(data_iter)
-                    break
+                    end_of_epoch = True
                 batch = [t.to(self.device) for t in batch]
                 x, y = batch
 
@@ -109,6 +108,9 @@ class Trainer:
                 self.iter_time = tnow
                 self.aggregated_loss += self.loss
                 self.iter_in_epoch += 1
+
+                if end_of_epoch:
+                    break
 
                 # termination conditions
                 if config.max_iters is not None and self.iter_num >= config.max_iters:
