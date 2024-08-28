@@ -78,8 +78,8 @@ def main(test, pretrained, enrich):
 
     features = categorical_features + numerical_features
 
-    df_train_full[numerical_features] = df_train_full[numerical_features] / df_train_full[numerical_features].abs().max()
-
+    num_max = df_train_full[numerical_features].abs().max()
+    df_train_full[numerical_features] = df_train_full[numerical_features] / num_max
     df_train_full["SalePrice_transformed"] = np.log(1 + df_train_full["SalePrice"])
 
     df_train_full = df_train_full[['Id', 'SalePrice', 'SalePrice_transformed'] + features]
@@ -90,7 +90,7 @@ def main(test, pretrained, enrich):
         if enrich:
             df_test = construct_text(df_test)       
         df_test = df_test[['Id'] + features]
-        df_test[numerical_features] = df_test[numerical_features] / df_train_full[numerical_features].abs().max()
+        df_test[numerical_features] = df_test[numerical_features] / num_max
         df_train = df_train_full
     else:
         df_train, df_test = train_test_split(df_train_full, test_size=0.2, random_state=666)
@@ -118,7 +118,8 @@ def main(test, pretrained, enrich):
     # create a Trainer object
     train_config = Trainer.get_default_config()
     train_config.max_iters = 1000000
-    train_config.epochs = 99
+    # train_config.epochs = 333
+    train_config.epochs = 160
     train_config.num_workers = 0
     train_config.batch_size = 64
     train_config.observe_train_loss = True
@@ -155,7 +156,7 @@ def main(test, pretrained, enrich):
 
     df_test = predict(model, DataLoader(test_dataset, batch_size=32), df_test)
     if test:
-        df_test = df_test[["Id", "yhat"]].rename(columns={"yhat": "SalePrice"}).to_csv("submission.csv", index=False)
+        df_test[["Id", "yhat"]].rename(columns={"yhat": "SalePrice"}).to_csv("submission.csv", index=False)
     else:
         evaluation(df_test["SalePrice"], df_test["yhat"])
 
