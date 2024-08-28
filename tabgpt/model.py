@@ -253,15 +253,15 @@ class tabGPT(nn.Module):
         for block in self.transformer.h:
             x = block(x)
         x = self.transformer.ln_f(x)
-        preds = self.lm_head(x)
+        preds = self.lm_head(x)[:, -1].squeeze()
 
         # if we are given some desired targets also calculate the loss
         loss = None
         if targets is not None:
             if self.lm_head.out_features == 1:
-                loss = F.mse_loss(preds[:, -1].squeeze(), targets)
+                loss = F.mse_loss(preds, targets)
             else:
-                loss = F.cross_entropy(preds[:, -1].squeeze(), targets)
+                loss = F.cross_entropy(preds, targets)
 
         return preds, loss
 
@@ -276,7 +276,7 @@ class tabGPT(nn.Module):
         # forward the model to get the preds (logits for classification) for the index in the sequence
         preds, _ = self(x_cond)
 
-        x_next = preds[:, -1, :]
+        x_next = preds
 
         if self.lm_head.out_features > 1:
             _, x_next = torch.topk(x_next, 1, axis=1)

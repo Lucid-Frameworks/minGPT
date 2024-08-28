@@ -24,11 +24,6 @@ else:
     device = torch.device("cpu")
 
 
-def backtransform(df):
-    df["yhat"] = np.exp(df["yhat"]) - 1
-    return df
-
-
 def evaluation(y, yhat):
     print('RMSLE: ', root_mean_squared_log_error(y, yhat))
     print('mean(y): ', np.mean(y))
@@ -40,12 +35,11 @@ def predict(model, dataloader, df):
     yhat = []
     for input_ids, _ in dataloader:
         with torch.no_grad():
-            output = model.generate(input_ids.to(device)).cpu().detach().numpy().tolist()
-            yhat += np.array(output).squeeze().tolist()
+            yhat += model.generate(input_ids.to(device)).cpu().detach().numpy().tolist()
 
     df["yhat"] = yhat
     df["yhat"] = np.clip(df["yhat"], 0, None)
-    df = backtransform(df)
+    df["yhat"] = np.exp(df["yhat"]) - 1
     return df
 
 
@@ -126,7 +120,7 @@ def main(test, pretrained, enrich):
     # create a Trainer object
     train_config = Trainer.get_default_config()
     train_config.max_iters = 1000000
-    train_config.epochs = 100
+    train_config.epochs = 67
     train_config.num_workers = 0
     train_config.batch_size = 32
     trainer = Trainer(train_config, model, train_dataset)

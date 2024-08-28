@@ -74,18 +74,20 @@ class Trainer:
             num_workers=config.num_workers,
         )
 
-        model.train()
         self.iter_num = 0
         self.iter_time = time.time()
         for epoch in range(config.epochs):
             data_iter = iter(train_loader)
             self.aggregated_loss = 0
             self.iter_in_epoch = 0
-            while True:
+            model.train()
 
+            while True:
                 # fetch the next batch (x, y) and re-init iterator if needed
                 try:
                     batch = next(data_iter)
+                    # if batch[1].size(dim=0) < config.batch_size:
+                    #     break
                 except StopIteration:
                     break
                 batch = [t.to(self.device) for t in batch]
@@ -105,13 +107,17 @@ class Trainer:
                 tnow = time.time()
                 self.iter_dt = tnow - self.iter_time
                 self.iter_time = tnow
-                self.aggregated_loss += self.loss
-                self.iter_in_epoch += 1
 
                 # termination conditions
                 if config.max_iters is not None and self.iter_num >= config.max_iters:
                     break
 
+            model.eval()
+            for x, y in DataLoader(self.train_dataset, batch_size=32):
+                with torch.no_grad():
+                    _, self.loss = model(x.to(self.device), y.to(self.device))
+                self.aggregated_loss += self.loss
+                self.iter_in_epoch += 1
             self.aggregated_loss /= self.iter_in_epoch
             self.epoch = epoch + 1
             self.trigger_callbacks('on_epoch_end')
