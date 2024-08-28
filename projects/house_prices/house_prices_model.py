@@ -50,20 +50,20 @@ def main(test, pretrained, enrich):
     # use data from Kaggle competition https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques
     df_train_full = pd.read_csv("train.csv")
 
-    important_cols = ["OverallQual",
-                      "GarageCars",
-                      "ExterQual",
-                      "Neighborhood",
-                      "GrLivArea",
-                      "GarageArea",
-                      "BsmtQual",
-                      "YearBuilt",
-                      "KitchenQual",
-                      "TotalBsmtSF",
-                      ]
-    important_cols.append('Id')
-    important_cols.append('SalePrice')
-    df_train_full = df_train_full[important_cols]
+    # important_cols = ["OverallQual",
+    #                   "GarageCars",
+    #                   "ExterQual",
+    #                   "Neighborhood",
+    #                   "GrLivArea",
+    #                   "GarageArea",
+    #                   "BsmtQual",
+    #                   "YearBuilt",
+    #                   "KitchenQual",
+    #                   "TotalBsmtSF",
+    #                   ]
+    # important_cols.append('Id')
+    # important_cols.append('SalePrice')
+    # df_train_full = df_train_full[important_cols]
 
     if enrich:
         df_train_full = construct_text(df_train_full)
@@ -72,8 +72,6 @@ def main(test, pretrained, enrich):
     numerical_features = []
     for col in df_train_full.drop(columns=["Id", "SalePrice"]).columns:
         if df_train_full[col].dtype == 'O':
-            categorical_features.append(col)
-        elif col in ["YearBuilt", "Original construction date"]:
             categorical_features.append(col)
         else:
             numerical_features.append(col)
@@ -88,7 +86,7 @@ def main(test, pretrained, enrich):
 
     if test:
         df_test = pd.read_csv("test.csv")
-        df_test = df_test[important_cols[:-1]]
+        # df_test = df_test[important_cols[:-1]]
         if enrich:
             df_test = construct_text(df_test)       
         df_test = df_test[['Id'] + features]
@@ -120,7 +118,7 @@ def main(test, pretrained, enrich):
     # create a Trainer object
     train_config = Trainer.get_default_config()
     train_config.max_iters = 1000000
-    train_config.epochs = 100
+    train_config.epochs = 99
     train_config.num_workers = 0
     train_config.batch_size = 64
     train_config.observe_train_loss = True
