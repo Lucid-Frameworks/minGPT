@@ -138,19 +138,22 @@ def main(test, pretrained):
     # create a Trainer object
     train_config = Trainer.get_default_config()
     train_config.max_iters = 1000000
-    train_config.epochs = 100
+    train_config.epochs = 45
     train_config.num_workers = 0
-    train_config.batch_size = 32
+    train_config.batch_size = 64
+    train_config.observe_train_loss = True
     trainer = Trainer(train_config, model, train_dataset)
 
-    # def batch_end_callback(trainer):
-    #     if trainer.iter_num % 100 == 0:
-    #         print(f"iter_dt {trainer.iter_dt * 1000:.2f}ms; iter {trainer.iter_num}: train loss {trainer.loss.item():.5f}")
-    # trainer.set_callback('on_batch_end', batch_end_callback)
+    if train_config.observe_train_loss:
+        def epoch_end_callback(trainer):
+            print(f"epoch {trainer.epoch}: train loss {trainer.aggregated_loss}")
+        trainer.set_callback('on_epoch_end', epoch_end_callback)
+    else:
+        def batch_end_callback(trainer):
+            if trainer.iter_num % 100 == 0:
+                print(f"iter_dt {trainer.iter_dt * 1000:.2f}ms; iter {trainer.iter_num}: train loss {trainer.loss.item():.5f}")
+        trainer.set_callback('on_batch_end', batch_end_callback)
 
-    def epoch_end_callback(trainer):
-        print(f"epoch {trainer.epoch}: train loss {trainer.aggregated_loss}")
-    trainer.set_callback('on_epoch_end', epoch_end_callback)
 
     trainer.run()
 

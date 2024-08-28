@@ -27,6 +27,7 @@ class Trainer:
         C.betas = (0.9, 0.95)
         C.weight_decay = 0.1 # only applied on matmul weights
         C.grad_norm_clip = 1.0
+        C.observe_train_loss = False
         return C
 
     def __init__(self, config, model, train_dataset):
@@ -68,7 +69,7 @@ class Trainer:
         # setup the dataloader
         train_loader = DataLoader(
             self.train_dataset,
-            # shuffle=True,
+            shuffle=True,
             pin_memory=True,
             batch_size=config.batch_size,
             num_workers=config.num_workers,
@@ -112,12 +113,13 @@ class Trainer:
                 if config.max_iters is not None and self.iter_num >= config.max_iters:
                     break
 
-            model.eval()
-            for x, y in DataLoader(self.train_dataset, batch_size=32):
-                with torch.no_grad():
-                    _, self.loss = model(x.to(self.device), y.to(self.device))
-                self.aggregated_loss += self.loss
-                self.iter_in_epoch += 1
-            self.aggregated_loss /= self.iter_in_epoch
-            self.epoch = epoch + 1
-            self.trigger_callbacks('on_epoch_end')
+            if config.observe_train_loss:
+                model.eval()
+                for x, y in DataLoader(self.train_dataset, batch_size=32):
+                    with torch.no_grad():
+                        _, self.loss = model(x.to(self.device), y.to(self.device))
+                    self.aggregated_loss += self.loss
+                    self.iter_in_epoch += 1
+                self.aggregated_loss /= self.iter_in_epoch
+                self.epoch = epoch + 1
+                self.trigger_callbacks('on_epoch_end')
