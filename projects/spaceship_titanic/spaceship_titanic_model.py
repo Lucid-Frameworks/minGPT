@@ -91,18 +91,18 @@ def main(test, pretrained):
 
     features = categorical_features + numerical_features
 
-    num_max = df_train_full[numerical_features].abs().max()
-    df_train_full[numerical_features] = df_train_full[numerical_features] / num_max
-
     if test:
         df_test = pd.read_csv("test.csv")
         df_test = feature_engineering(df_test)
-        df_test[numerical_features] = df_test[numerical_features] / num_max
         df_train = df_train_full
     else:
         validation_groups = np.random.randint(0, len(df_train_full["group"].unique()), size=1000)
         df_test = df_train_full.loc[df_train_full["group"].isin(validation_groups)]
         df_train = df_train_full.loc[~df_train_full["group"].isin(validation_groups)]
+
+    num_max = df_train[numerical_features].abs().max()
+    df_train[numerical_features] = df_train[numerical_features] / num_max
+    df_test[numerical_features] = df_test[numerical_features] / num_max
 
     features_embeds_train = get_column_embeddings(df_train, "spaceship titanic", categorical_features, numerical_features, number_of_cols=len(features))
     features_embeds_test = get_column_embeddings(df_test, "spaceship titanic", categorical_features, numerical_features, number_of_cols=len(features))
@@ -139,7 +139,8 @@ def main(test, pretrained):
     # create a Trainer object
     train_config = Trainer.get_default_config()
     train_config.max_iters = 1000000
-    train_config.epochs = 181
+    # train_config.epochs = 181
+    train_config.epochs = 217
     train_config.num_workers = 0
     train_config.batch_size = 64
     train_config.observe_train_loss = True
@@ -164,6 +165,7 @@ def main(test, pretrained):
 
     df_test = predict(model, DataLoader(test_dataset, batch_size=32), df_test)
     if test:
+        df_test["yhat"] = df_test["yhat"].astype(bool)
         df_test[["PassengerId", "yhat"]].rename(columns={"yhat": "Transported"}).to_csv("submission.csv", index=False)
     else:
         evaluation(df_test["Transported"], df_test["yhat"])

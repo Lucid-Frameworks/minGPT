@@ -78,8 +78,6 @@ def main(test, pretrained, enrich):
 
     features = categorical_features + numerical_features
 
-    num_max = df_train_full[numerical_features].abs().max()
-    df_train_full[numerical_features] = df_train_full[numerical_features] / num_max
     df_train_full["SalePrice_transformed"] = np.log(1 + df_train_full["SalePrice"])
 
     df_train_full = df_train_full[['Id', 'SalePrice', 'SalePrice_transformed'] + features]
@@ -90,10 +88,13 @@ def main(test, pretrained, enrich):
         if enrich:
             df_test = construct_text(df_test)       
         df_test = df_test[['Id'] + features]
-        df_test[numerical_features] = df_test[numerical_features] / num_max
         df_train = df_train_full
     else:
         df_train, df_test = train_test_split(df_train_full, test_size=0.2, random_state=666)
+
+    num_max = df_train[numerical_features].abs().max()
+    df_train[numerical_features] = df_train[numerical_features] / num_max
+    df_test[numerical_features] = df_test[numerical_features] / num_max
 
     features_embeds_train = get_column_embeddings(df_train, "house prices", categorical_features, numerical_features, number_of_cols=len(features))
 
