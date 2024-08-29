@@ -91,12 +91,13 @@ def main(test, pretrained):
 
     features = categorical_features + numerical_features
 
-    df_train_full[numerical_features] = df_train_full[numerical_features] / df_train_full[numerical_features].abs().max()
+    num_max = df_train_full[numerical_features].abs().max()
+    df_train_full[numerical_features] = df_train_full[numerical_features] / num_max
 
     if test:
         df_test = pd.read_csv("test.csv")
         df_test = feature_engineering(df_test)
-        df_test[numerical_features] = df_test[numerical_features] / df_train_full[numerical_features].abs().max()
+        df_test[numerical_features] = df_test[numerical_features] / num_max
         df_train = df_train_full
     else:
         validation_groups = np.random.randint(0, len(df_train_full["group"].unique()), size=1000)
@@ -138,7 +139,7 @@ def main(test, pretrained):
     # create a Trainer object
     train_config = Trainer.get_default_config()
     train_config.max_iters = 1000000
-    train_config.epochs = 45
+    train_config.epochs = 181
     train_config.num_workers = 0
     train_config.batch_size = 64
     train_config.observe_train_loss = True
@@ -163,7 +164,7 @@ def main(test, pretrained):
 
     df_test = predict(model, DataLoader(test_dataset, batch_size=32), df_test)
     if test:
-        df_test = df_test[["PassengerId", "yhat"]].rename(columns={"yhat": "Transported"}).to_csv("submission.csv", index=False)
+        df_test[["PassengerId", "yhat"]].rename(columns={"yhat": "Transported"}).to_csv("submission.csv", index=False)
     else:
         evaluation(df_test["Transported"], df_test["yhat"])
 
