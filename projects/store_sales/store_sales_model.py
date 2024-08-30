@@ -3,7 +3,7 @@ import argparse
 import pandas as pd
 import numpy as np
 from sklearn.metrics import root_mean_squared_log_error
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 import datetime
 
@@ -25,21 +25,21 @@ else:
     device = torch.device("cpu")
 
 
-def plot_timeseries(df, suffix, include_preds=False):
-    if include_preds:
-        ts = df.groupby(['date'])[['sales', 'yhat']].sum().reset_index()
-    else:
-        ts = df.groupby(['date'])['sales'].sum().reset_index()
-    plt.figure()
-    ts.index = ts['date']
-    ts['sales'].plot(style='r', label="sales")
-    if include_preds:
-        ts['yhat'].plot(style='b-.', label="predictions")
-    plt.legend(fontsize=15)
-    plt.ylabel("sum", fontsize=15)
-    plt.tight_layout()
-    plt.savefig("ts_{}.png".format(suffix))
-    plt.clf()
+# def plot_timeseries(df, suffix, include_preds=False):
+#     if include_preds:
+#         ts = df.groupby(['date'])[['sales', 'yhat']].sum().reset_index()
+#     else:
+#         ts = df.groupby(['date'])['sales'].sum().reset_index()
+#     plt.figure()
+#     ts.index = ts['date']
+#     ts['sales'].plot(style='r', label="sales")
+#     if include_preds:
+#         ts['yhat'].plot(style='b-.', label="predictions")
+#     plt.legend(fontsize=15)
+#     plt.ylabel("sum", fontsize=15)
+#     plt.tight_layout()
+#     plt.savefig("ts_{}.png".format(suffix))
+#     plt.clf()
 
 
 def evaluation(y, yhat):

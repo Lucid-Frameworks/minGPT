@@ -1,0 +1,12 @@
+[tool.poetry]
+name = "tabGPT"
+version = "0.0.1"
+authors = ["Felix Wick"]
+description = "an adaption of Andrej Karpathy's minGPT for tabular data"
+
+[tool.poetry.dependencies]
+python = ">=3.8"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
