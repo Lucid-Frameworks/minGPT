@@ -271,6 +271,68 @@ def get_data_bicycles_count():
     return df_train, df_val, features, categorical_features, numerical_features
 
 
+def get_data_simulated_demand():
+    df_train = pd.read_parquet("../demand-forecasting-simulated/train.parquet.gzip")
+    df_test = pd.read_parquet("../demand-forecasting-simulated/test.parquet.gzip")
+    df_test_results = pd.read_parquet("../demand-forecasting-simulated/test_results.parquet.gzip")
+    df_test = df_test.merge(df_test_results, on=['P_ID', 'L_ID', 'DATE'])
+
+    def data_preparation(df):
+        df.rename(
+            columns={
+                "P_ID": "product id",
+                "PG_ID_3": "product group id",
+                "NORMAL_PRICE": "normal price",
+                "L_ID": "location id",
+                "SALES_AREA": "sales area",
+                "PROMOTION_TYPE": "type of promotion",
+                "SALES_PRICE": "sales price",
+            },
+            inplace=True,
+        )
+
+        df["date"] = pd.to_datetime(df["DATE"])
+        df["weekday"] = df['date'].dt.day_name()
+        df["day in month"] = df['date'].dt.day
+        df["day in year"] = df['date'].dt.dayofyear
+
+        return df
+
+    df_train = data_preparation(df_train)
+    df_test = data_preparation(df_test)
+
+    df_train["target"] = np.log(1 + df_train["SALES"])
+    df_test["target"] = df_test["SALES"]
+
+    ewma_groups = ["location id", "product id", "weekday"]
+    df_train = ewma_prediction(df_train, ewma_groups, "target", 0.15, 1)
+    df_test = ewma_merge(df_test, df_train, "past sales", ewma_groups)
+
+    categorical_features = [
+        "product id",
+        "product group id",
+        "location id",
+        "type of promotion",
+        "weekday",
+    ]
+    numerical_features = [
+        "normal price",
+        "sales area", 
+        "sales price",
+        "day in month",
+        "day in year",
+        "past sales",
+    ]
+
+    features = categorical_features + numerical_features
+
+    num_max = df_train[numerical_features].abs().max()
+    df_train[numerical_features] = df_train[numerical_features] / num_max
+    df_test[numerical_features] = df_test[numerical_features] / num_max
+
+    return df_train, df_test, features, categorical_features, numerical_features
+
+
 def main(pretrained):
     np.random.seed(666)
     torch.manual_seed(42)
@@ -278,19 +340,21 @@ def main(pretrained):
     df_train_store_sales, df_val_store_sales, features_store_sales, categorical_features_store_sales, numerical_features_store_sales = get_data_store_sales()
     df_train_house_prices, df_val_house_prices, features_house_prices, categorical_features_house_prices, numerical_features_house_prices = get_data_house_prices()
     df_train_bicycles_count, df_val_bicycles_count, features_bicycles_count, categorical_features_bicycles_count, numerical_features_bicycles_count = get_data_bicycles_count()
+    df_train_simulated_demand, df_val_simulated_demand, features_simulated_demand, categorical_features_simulated_demand, numerical_features_simulated_demand = get_data_simulated_demand()
 
-    max_features = max(len(features_store_sales), len(features_house_prices), len(features_bicycles_count))
-    features = features_store_sales + features_house_prices
+    max_features = max(len(features_store_sales), len(features_house_prices), len(features_bicycles_count), len(features_simulated_demand))
+    features = features_store_sales + features_house_prices + features_bicycles_count + features_simulated_demand
 
     features_embeds_train_store_sales = get_column_embeddings(df_train_store_sales, "store sales", categorical_features_store_sales, numerical_features_store_sales, number_of_cols=max_features)
     features_embeds_train_house_prices = get_column_embeddings(df_train_house_prices, "house prices", categorical_features_house_prices, numerical_features_house_prices, number_of_cols=max_features)
     features_embeds_train_bicycles_count = get_column_embeddings(df_train_bicycles_count, "bicycles count", categorical_features_bicycles_count, numerical_features_bicycles_count, number_of_cols=max_features)
+    features_embeds_train_simulated_demand = get_column_embeddings(df_train_simulated_demand, "retail demand forecasting", categorical_features_simulated_demand, numerical_features_simulated_demand, number_of_cols=max_features)
 
-    features_embeds_train = torch.cat((features_embeds_train_store_sales, features_embeds_train_house_prices, features_embeds_train_bicycles_count), dim=0)
+    features_embeds_train = torch.cat((features_embeds_train_store_sales, features_embeds_train_house_prices, features_embeds_train_bicycles_count, features_embeds_train_simulated_demand), dim=0)
 
-    max_length = len(features) + 3
+    max_length = len(features) + 4
 
-    targets_train = df_train_store_sales["target"].tolist() + df_train_house_prices["target"].tolist() + df_train_bicycles_count["target"].tolist()
+    targets_train = df_train_store_sales["target"].tolist() + df_train_house_prices["target"].tolist() + df_train_bicycles_count["target"].tolist() + df_train_simulated_demand["target"].tolist()
 
     train_dataset = TensorDataset(
         features_embeds_train, 
@@ -333,6 +397,7 @@ def main(pretrained):
     features_embeds_val_store_sales = get_column_embeddings(df_val_store_sales, "store sales", categorical_features_store_sales, numerical_features_store_sales, number_of_cols=max_features)
     features_embeds_val_house_prices = get_column_embeddings(df_val_house_prices, "house prices", categorical_features_house_prices, numerical_features_house_prices, number_of_cols=max_features)
     features_embeds_val_bicycles_count = get_column_embeddings(df_val_bicycles_count, "bicycles count", categorical_features_bicycles_count, numerical_features_bicycles_count, number_of_cols=max_features)
+    features_embeds_val_simulated_demand = get_column_embeddings(df_val_simulated_demand, "retail demand forecasting", categorical_features_simulated_demand, numerical_features_simulated_demand, number_of_cols=max_features)
 
     val_dataset_store_sales = TensorDataset(
         features_embeds_val_store_sales, 
@@ -349,6 +414,11 @@ def main(pretrained):
         torch.tensor(df_val_bicycles_count["target"].tolist(), dtype=torch.float32)
         )
 
+    val_dataset_simulated_demand = TensorDataset(
+        features_embeds_val_simulated_demand, 
+        torch.tensor(df_val_simulated_demand["target"].tolist(), dtype=torch.float32)
+        )
+
     df_val_store_sales = predict(model, DataLoader(val_dataset_store_sales, batch_size=32), df_val_store_sales)
     evaluation(df_val_store_sales["target"], df_val_store_sales["yhat"])
     plot_timeseries(df_val_store_sales, "store_sales", True)
@@ -359,6 +429,10 @@ def main(pretrained):
     df_val_bicycles_count = predict(model, DataLoader(val_dataset_bicycles_count, batch_size=32), df_val_bicycles_count)
     evaluation(df_val_bicycles_count["target"], df_val_bicycles_count["yhat"])
     plot_timeseries(df_val_bicycles_count, "bicycles_count", True)
+
+    df_val_simulated_demand = predict(model, DataLoader(val_dataset_simulated_demand, batch_size=32), df_val_simulated_demand)
+    evaluation(df_val_simulated_demand["target"], df_val_simulated_demand["yhat"])
+    plot_timeseries(df_val_simulated_demand, "simulated_demand", True)
 
     embed()
 
