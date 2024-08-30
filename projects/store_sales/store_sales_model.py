@@ -3,7 +3,7 @@ import argparse
 import pandas as pd
 import numpy as np
 from sklearn.metrics import root_mean_squared_log_error
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 import datetime
 
@@ -25,21 +25,21 @@ else:
     device = torch.device("cpu")
 
 
-# def plot_timeseries(df, suffix, include_preds=False):
-#     if include_preds:
-#         ts = df.groupby(['date'])[['sales', 'yhat']].sum().reset_index()
-#     else:
-#         ts = df.groupby(['date'])['sales'].sum().reset_index()
-#     plt.figure()
-#     ts.index = ts['date']
-#     ts['sales'].plot(style='r', label="sales")
-#     if include_preds:
-#         ts['yhat'].plot(style='b-.', label="predictions")
-#     plt.legend(fontsize=15)
-#     plt.ylabel("sum", fontsize=15)
-#     plt.tight_layout()
-#     plt.savefig("ts_{}.png".format(suffix))
-#     plt.clf()
+def plot_timeseries(df, suffix, include_preds=False):
+    if include_preds:
+        ts = df.groupby(['date'])[['sales', 'yhat']].sum().reset_index()
+    else:
+        ts = df.groupby(['date'])['sales'].sum().reset_index()
+    plt.figure()
+    ts.index = ts['date']
+    ts['sales'].plot(style='r', label="sales")
+    if include_preds:
+        ts['yhat'].plot(style='b-.', label="predictions")
+    plt.legend(fontsize=15)
+    plt.ylabel("sum", fontsize=15)
+    plt.tight_layout()
+    plt.savefig("ts_{}.png".format(suffix))
+    plt.clf()
 
 
 def evaluation(y, yhat):
@@ -204,9 +204,9 @@ def main(test, pretrained):
     # inference
     df_train = predict(model, DataLoader(train_dataset, batch_size=32), df_train)
     evaluation(df_train["sales"], df_train["yhat"])
-    # plot_timeseries(df_train, "train", True)
-    # for pg in df_train["product group"].unique():
-    #     plot_timeseries(df_train[df_train["product group"] == pg], pg + "_train", True)
+    plot_timeseries(df_train, "train", True)
+    for pg in df_train["product group"].unique():
+        plot_timeseries(df_train[df_train["product group"] == pg], pg + "_train", True)
 
     features_embeds_test = get_column_embeddings(df_test, "store sales", categorical_features, numerical_features, number_of_cols=len(features))
 
@@ -226,9 +226,9 @@ def main(test, pretrained):
         pd.concat([df_test["id"], df_test["yhat"]], axis=1).rename(columns={"yhat": "sales"}).to_csv("submission.csv", index=False)
     else:
         evaluation(df_test["sales"], df_test["yhat"])
-        # plot_timeseries(df_test, "val", True)
-        # for pg in df_test["product group"].unique():
-        #     plot_timeseries(df_test[df_test["product group"] == pg], pg + "_val", True)
+        plot_timeseries(df_test, "val", True)
+        for pg in df_test["product group"].unique():
+            plot_timeseries(df_test[df_test["product group"] == pg], pg + "_val", True)
 
     embed()
 

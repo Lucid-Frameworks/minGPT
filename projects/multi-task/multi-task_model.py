@@ -109,8 +109,6 @@ def get_data_store_sales():
 
     df_train_full = get_events(df_train_full)
 
-    df_train_full["target"] = np.log(1 + df_train_full["sales"])
-
     # take just a small data set for testing
     df_train_full = df_train_full[df_train_full["date"] >= "2017-05-01"].reset_index(drop=True)
     df_train_full = df_train_full[(df_train_full["store_nbr"].isin([1, 2, 3])) & (df_train_full["family"].isin(["LIQUOR,WINE,BEER", "EGGS", "MEATS"]))].reset_index(drop=True)
@@ -141,6 +139,9 @@ def get_data_store_sales():
     df_train = df_train_full[df_train_full["date"] <= "2017-07-30"].reset_index(drop=True)
     df_val = df_train_full[df_train_full["date"] >= "2017-07-31"].reset_index(drop=True)
 
+    df_train["target"] = np.log(1 + df_train["sales"])
+    df_val["target"] = df_val["sales"]
+
     ewma_groups = ["store", "product group", "weekday"]
     df_train = ewma_prediction(df_train, ewma_groups, "target", 0.15, 1)
     df_val = ewma_merge(df_val, df_train, "past sales", ewma_groups)
@@ -155,8 +156,6 @@ def get_data_store_sales():
 def get_data_house_prices():
     # use data from Kaggle competition https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques
     df_train_full = pd.read_csv("../house_prices/train.csv")
-
-    df_train_full["target"] = np.log(1 + df_train_full["SalePrice"])
 
     categorical_features = [
         "OverallQual",
@@ -176,6 +175,9 @@ def get_data_house_prices():
     features = categorical_features + numerical_features
 
     df_train, df_val = train_test_split(df_train_full, test_size=0.2, random_state=666)
+
+    df_train["target"] = np.log(1 + df_train["SalePrice"])
+    df_val["target"] = df_val["SalePrice"]
 
     num_max = df_train[numerical_features].abs().max()
     df_train[numerical_features] = df_train[numerical_features] / num_max
@@ -242,8 +244,6 @@ def get_data_bicycles_count():
         # df['weekday'] = pd.to_datetime(df['Date']).dt.dayofweek
         df['weekday'] = pd.to_datetime(df['Date']).dt.day_name()
 
-        df["target"] = np.log(1 + df["bicycles count"])
-
         return df
 
     df_train = data_preparation(df_train)
@@ -260,6 +260,9 @@ def get_data_bicycles_count():
     ]
 
     features = categorical_features + numerical_features
+
+    df_train["target"] = np.log(1 + df_train["bicycles count"])
+    df_val["target"] = df_val["bicycles count"]
 
     num_max = df_train[numerical_features].abs().max()
     df_train[numerical_features] = df_train[numerical_features] / num_max

@@ -3,7 +3,7 @@ import sys
 import pandas as pd
 import numpy as np
 from sklearn.metrics import root_mean_squared_log_error
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 import torch
 from torch.utils.data import TensorDataset, DataLoader
@@ -23,21 +23,21 @@ else:
     device = torch.device("cpu")
 
 
-# def plot_timeseries(df, suffix, include_preds=False):
-#     if include_preds:
-#         ts = df.groupby(['Date'])[['bicycles count', 'yhat']].sum().reset_index()
-#     else:
-#         ts = df.groupby(['Date'])['bicycles count'].sum().reset_index()
-#     plt.figure()
-#     ts.index = ts['Date']
-#     ts['bicycles count'].plot(style='r', label="bicycles count")
-#     if include_preds:
-#         ts['yhat'].plot(style='b-.', label="predictions")
-#     plt.legend(fontsize=15)
-#     plt.ylabel("sum", fontsize=15)
-#     plt.tight_layout()
-#     plt.savefig("ts_{}.png".format(suffix))
-#     plt.clf()
+def plot_timeseries(df, suffix, include_preds=False):
+    if include_preds:
+        ts = df.groupby(['Date'])[['bicycles count', 'yhat']].sum().reset_index()
+    else:
+        ts = df.groupby(['Date'])['bicycles count'].sum().reset_index()
+    plt.figure()
+    ts.index = ts['Date']
+    ts['bicycles count'].plot(style='r', label="bicycles count")
+    if include_preds:
+        ts['yhat'].plot(style='b-.', label="predictions")
+    plt.legend(fontsize=15)
+    plt.ylabel("sum", fontsize=15)
+    plt.tight_layout()
+    plt.savefig("ts_{}.png".format(suffix))
+    plt.clf()
 
 
 def evaluation(y, yhat):
@@ -198,15 +198,15 @@ def main(args):
     # inference
     df_train = predict(model, DataLoader(train_dataset, batch_size=32), df_train)
     evaluation(df_train["bicycles count"], df_train["yhat"])
-    # plot_timeseries(df_train, "train", True)
-    # for pg in df_train["bridge"].unique():
-    #     plot_timeseries(df_train[df_train["bridge"] == pg], pg + "_train", True)
+    plot_timeseries(df_train, "train", True)
+    for pg in df_train["bridge"].unique():
+        plot_timeseries(df_train[df_train["bridge"] == pg], pg + "_train", True)
 
     df_val = predict(model, DataLoader(val_dataset, batch_size=32), df_val)
     evaluation(df_val["bicycles count"], df_val["yhat"])
-    # plot_timeseries(df_val, "val", True)
-    # for pg in df_val["bridge"].unique():
-    #     plot_timeseries(df_val[df_val["bridge"] == pg], pg + "_val", True)
+    plot_timeseries(df_val, "val", True)
+    for pg in df_val["bridge"].unique():
+        plot_timeseries(df_val[df_val["bridge"] == pg], pg + "_val", True)
 
     embed()
 

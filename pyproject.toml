@@ -11,6 +11,9 @@ scikit-learn = "^1.5.1"
 pandas = "^2.2.2"
 torch = {version = "2.4.0", source = "torch_cu121"}
 transformers = "^4.44.2"
+matplotlib = "^3.9.2"
+pyarrow = "^17.0.0"
+openpyxl = "^3.1.5"
 
 [[tool.poetry.source]]
 name = "torch_cu121"
