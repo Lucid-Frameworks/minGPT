@@ -6,6 +6,16 @@ description = "an adaption of Andrej Karpathy's minGPT for tabular data"
 
 [tool.poetry.dependencies]
 python = ">=3.10"
+ipython = "^8.27.0"
+scikit-learn = "^1.5.1"
+pandas = "^2.2.2"
+torch = {version = "2.4.0", source = "torch_cu121"}
+transformers = "^4.44.2"
+
+[[tool.poetry.source]]
+name = "torch_cu121"
+url = "https://download.pytorch.org/whl/cu121"
+priority = "explicit"
 
 [build-system]
 requires = ["poetry-core"]
