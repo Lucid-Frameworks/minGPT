@@ -2,8 +2,8 @@ import sys
 
 import pandas as pd
 import numpy as np
-from sklearn.metrics import mean_squared_error
-import matplotlib.pyplot as plt
+from sklearn.metrics import root_mean_squared_log_error
+# import matplotlib.pyplot as plt
 
 import torch
 from torch.utils.data import TensorDataset, DataLoader
@@ -23,25 +23,25 @@ else:
     device = torch.device("cpu")
 
 
-def plot_timeseries(df, suffix, include_preds=False):
-    if include_preds:
-        ts = df.groupby(['Date'])[['bicycles count', 'yhat']].sum().reset_index()
-    else:
-        ts = df.groupby(['Date'])['bicycles count'].sum().reset_index()
-    plt.figure()
-    ts.index = ts['Date']
-    ts['bicycles count'].plot(style='r', label="bicycles count")
-    if include_preds:
-        ts['yhat'].plot(style='b-.', label="predictions")
-    plt.legend(fontsize=15)
-    plt.ylabel("sum", fontsize=15)
-    plt.tight_layout()
-    plt.savefig("ts_{}.png".format(suffix))
-    plt.clf()
+# def plot_timeseries(df, suffix, include_preds=False):
+#     if include_preds:
+#         ts = df.groupby(['Date'])[['bicycles count', 'yhat']].sum().reset_index()
+#     else:
+#         ts = df.groupby(['Date'])['bicycles count'].sum().reset_index()
+#     plt.figure()
+#     ts.index = ts['Date']
+#     ts['bicycles count'].plot(style='r', label="bicycles count")
+#     if include_preds:
+#         ts['yhat'].plot(style='b-.', label="predictions")
+#     plt.legend(fontsize=15)
+#     plt.ylabel("sum", fontsize=15)
+#     plt.tight_layout()
+#     plt.savefig("ts_{}.png".format(suffix))
+#     plt.clf()
 
 
 def evaluation(y, yhat):
-    print('MSE: ', mean_squared_error(y, yhat))
+    print('RMSLE: ', root_mean_squared_log_error(y, yhat))
     print('mean(y): ', np.mean(y))
 
 
@@ -51,11 +51,11 @@ def predict(model, dataloader, df):
     yhat = []
     for input_ids, _ in dataloader:
         with torch.no_grad():
-            output = model.generate(input_ids.to(device)).cpu().detach().numpy().tolist()
-            yhat += np.array(output).squeeze().tolist()
+            yhat += model.generate(input_ids.to(device)).cpu().detach().numpy().tolist()
 
     df["yhat"] = yhat
     df["yhat"] = np.clip(df["yhat"], 0, None)
+    df["yhat"] = np.exp(df["yhat"]) - 1
     return df
 
 
@@ -70,6 +70,8 @@ def data_preparation(df):
 
     # df['weekday'] = pd.to_datetime(df['Date']).dt.dayofweek
     df['weekday'] = pd.to_datetime(df['Date']).dt.day_name()
+
+    df["bicycles_count_transformed"] = np.log(1 + df["bicycles count"])
 
     return df
 
@@ -145,19 +147,23 @@ def main(args):
 
     features = categorical_features + numerical_features
 
-    features_embeds_train = get_column_embeddings(df_train, "bicycles count", categorical_features, numerical_features, number_of_cols=5)
-    features_embeds_val = get_column_embeddings(df_val, "bicycles count", categorical_features, numerical_features, number_of_cols=5)
+    num_max = df_train[numerical_features].abs().max()
+    df_train[numerical_features] = df_train[numerical_features] / num_max
+    df_val[numerical_features] = df_val[numerical_features] / num_max
+
+    features_embeds_train = get_column_embeddings(df_train, "bicycles count", categorical_features, numerical_features, number_of_cols=len(features))
+    features_embeds_val = get_column_embeddings(df_val, "bicycles count", categorical_features, numerical_features, number_of_cols=len(features))
 
     max_length = len(features) + 1
 
     train_dataset = TensorDataset(
         features_embeds_train, 
-        torch.tensor(df_train["bicycles count"].tolist(), dtype=torch.float32)
+        torch.tensor(df_train["bicycles_count_transformed"].tolist(), dtype=torch.float32)
         )
 
     val_dataset = TensorDataset(
         features_embeds_val, 
-        torch.tensor(df_val["bicycles count"].tolist(), dtype=torch.float32)
+        torch.tensor(df_val["bicycles_count_transformed"].tolist(), dtype=torch.float32)
         )
 
     # tabGPT model
@@ -170,31 +176,37 @@ def main(args):
 
     # create a Trainer object
     train_config = Trainer.get_default_config()
-    train_config.max_iters = 10000
+    train_config.max_iters = 100000
     train_config.epochs = 100
     train_config.num_workers = 0
-    train_config.batch_size = 8
+    train_config.batch_size = 64
+    train_config.observe_train_loss = True
     trainer = Trainer(train_config, model, train_dataset)
 
-    def batch_end_callback(trainer):
-        if trainer.iter_num % 100 == 0:
-            print(f"iter_dt {trainer.iter_dt * 1000:.2f}ms; iter {trainer.iter_num}: train loss {trainer.loss.item():.5f}")
-    trainer.set_callback('on_batch_end', batch_end_callback)
+    if train_config.observe_train_loss:
+        def epoch_end_callback(trainer):
+            print(f"epoch {trainer.epoch}: train loss {np.sqrt(trainer.aggregated_loss.detach().cpu())}")
+        trainer.set_callback('on_epoch_end', epoch_end_callback)
+    else:
+        def batch_end_callback(trainer):
+            if trainer.iter_num % 100 == 0:
+                print(f"iter_dt {trainer.iter_dt * 1000:.2f}ms; iter {trainer.iter_num}: train loss {trainer.loss.item():.5f}")
+        trainer.set_callback('on_batch_end', batch_end_callback)
 
     trainer.run()
 
     # inference
     df_train = predict(model, DataLoader(train_dataset, batch_size=32), df_train)
     evaluation(df_train["bicycles count"], df_train["yhat"])
-    plot_timeseries(df_train, "train", True)
-    for pg in df_train["bridge"].unique():
-        plot_timeseries(df_train[df_train["bridge"] == pg], pg + "_train", True)
+    # plot_timeseries(df_train, "train", True)
+    # for pg in df_train["bridge"].unique():
+    #     plot_timeseries(df_train[df_train["bridge"] == pg], pg + "_train", True)
 
     df_val = predict(model, DataLoader(val_dataset, batch_size=32), df_val)
     evaluation(df_val["bicycles count"], df_val["yhat"])
-    plot_timeseries(df_val, "val", True)
-    for pg in df_val["bridge"].unique():
-        plot_timeseries(df_val[df_val["bridge"] == pg], pg + "_val", True)
+    # plot_timeseries(df_val, "val", True)
+    # for pg in df_val["bridge"].unique():
+    #     plot_timeseries(df_val[df_val["bridge"] == pg], pg + "_val", True)
 
     embed()
 
