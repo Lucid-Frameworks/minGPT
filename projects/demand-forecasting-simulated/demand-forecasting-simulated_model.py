@@ -59,6 +59,24 @@ def predict(model, dataloader, df):
     return df
 
 
+def ewma_prediction(df, group_cols, col, alpha, horizon):
+    df.sort_values(["DATE"], inplace=True)
+    df_grouped = df.groupby(group_cols, group_keys=False)
+    df["past sales"] = df_grouped[col].apply(lambda x: x.shift(horizon).ewm(alpha=alpha, ignore_na=True).mean())
+    return df
+
+
+def ewma_merge(df_test, df_train, ewma_col, group_cols):
+    def get_latest_ewmas(df):
+        return df.loc[df["DATE"] == df["DATE"].max(), ewma_col]
+
+    df_train_latest_ewma = df_train[["DATE", ewma_col] + group_cols].groupby(group_cols).apply(get_latest_ewmas).reset_index()
+
+    df_test = df_test.merge(df_train_latest_ewma[[ewma_col] + group_cols], on=group_cols, how="left")
+
+    return df_test
+
+
 def data_preparation(df):
     df.rename(
         columns={
@@ -78,27 +96,7 @@ def data_preparation(df):
     df["day in month"] = df['DATE'].dt.day
     df["day in year"] = df['DATE'].dt.dayofyear
 
-    categorical_features = [
-        "product id",
-        "product group id",
-        "location id",
-        "type of promotion",
-        "weekday",
-    ]
-
-    numerical_features = [
-        "normal price",
-        "sales area", 
-        "sales price",
-        "day in month",
-        "day in year",
-    ]
-
-    num_max = df[numerical_features].abs().max()
-
-    features = categorical_features + numerical_features
-
-    return (df, features, categorical_features, numerical_features, num_max)
+    return df
 
 
 def main(args):
@@ -107,14 +105,32 @@ def main(args):
 
     df_train = pd.read_parquet("train.parquet.gzip")
 
-    (
-        df_train,
-        features,
-        categorical_features,
-        numerical_features,
-        num_max
-    ) = data_preparation(df_train)
+    df_train = data_preparation(df_train)
+
     df_train["sales_transformed"] = np.log(1 + df_train["SALES"])
+
+    ewma_groups = ["location id", "product id", "weekday"]
+    df_train = ewma_prediction(df_train, ewma_groups, "sales_transformed", 0.15, 1)
+
+    categorical_features = [
+        "product id",
+        "product group id",
+        "location id",
+        "type of promotion",
+        "weekday",
+    ]
+    numerical_features = [
+        "normal price",
+        "sales area", 
+        "sales price",
+        "day in month",
+        "day in year",
+        "past sales",
+    ]
+
+    num_max = df_train[numerical_features].abs().max()
+
+    features = categorical_features + numerical_features
 
     df_train[numerical_features] = df_train[numerical_features] / num_max
     features_embeds_train = get_column_embeddings(
@@ -166,7 +182,9 @@ def main(args):
     df_test = pd.read_parquet("test.parquet.gzip")
     df_test_results = pd.read_parquet("test_results.parquet.gzip")
 
-    (df_test, _, _, _, _) = data_preparation(df_test)
+    df_test = data_preparation(df_test)
+
+    df_test = ewma_merge(df_test, df_train, "past sales", ewma_groups)
 
     df_test[numerical_features] = df_test[numerical_features] / num_max
     features_embeds_test = get_column_embeddings(

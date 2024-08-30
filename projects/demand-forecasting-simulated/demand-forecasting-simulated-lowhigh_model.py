@@ -59,6 +59,24 @@ def predict(model, dataloader, df):
     return df
 
 
+def ewma_prediction(df, group_cols, col, alpha, horizon):
+    df.sort_values(["DATE"], inplace=True)
+    df_grouped = df.groupby(group_cols, group_keys=False)
+    df["past sales"] = df_grouped[col].apply(lambda x: x.shift(horizon).ewm(alpha=alpha, ignore_na=True).mean())
+    return df
+
+
+def ewma_merge(df_test, df_train, ewma_col, group_cols):
+    def get_latest_ewmas(df):
+        return df.loc[df["DATE"] == df["DATE"].max(), ewma_col]
+
+    df_train_latest_ewma = df_train[["DATE", ewma_col] + group_cols].groupby(group_cols).apply(get_latest_ewmas).reset_index()
+
+    df_test = df_test.merge(df_train_latest_ewma[[ewma_col] + group_cols], on=group_cols, how="left")
+
+    return df_test
+
+
 def data_preparation(df):
     df.rename(
         columns={
@@ -78,29 +96,7 @@ def data_preparation(df):
     df["day in month"] = df['DATE'].dt.day
     df["day in year"] = df['DATE'].dt.dayofyear
 
-    categorical_features = [
-        "product id",
-        "product group id",
-        "location id",
-        "type of promotion",
-        "weekday",
-    ]
-
-    numerical_features = [
-        "normal price",
-        "sales area", 
-        "sales price",
-        "day in month",
-        "day in year",
-    ]
-
-    num_max = df[numerical_features].abs().max()
-
-    features = categorical_features + numerical_features
-
-    df= df.iloc[:1000]
-
-    return (df, features, categorical_features, numerical_features, num_max)
+    return df
 
 
 def main(args):
@@ -110,23 +106,43 @@ def main(args):
     df_train_sim_low = pd.read_parquet("train.parquet.gzip")
     df_train_sim_high = pd.read_parquet("train_high.parquet.gzip")
 
-    (
-        df_train_sim_low,
-        features_sim_low,
-        categorical_features_sim_low,
-        numerical_features_sim_low,
-        num_max_sim_low
-    ) = data_preparation(df_train_sim_low)
-    df_train_sim_low["sales_transformed"] = np.log(1 + df_train_sim_low["SALES"])
+    df_train_sim_low = data_preparation(df_train_sim_low)
+    df_train_sim_high = data_preparation(df_train_sim_high)
 
-    (
-        df_train_sim_high,
-        features_sim_high,
-        categorical_features_sim_high,
-        numerical_features_sim_high,
-        num_max_sim_high
-    ) = data_preparation(df_train_sim_high)
+    df_train_sim_low["sales_transformed"] = np.log(1 + df_train_sim_low["SALES"])
     df_train_sim_high["sales_transformed"] = np.log(1 + df_train_sim_high["SALES"])
+
+    ewma_groups = ["location id", "product id", "weekday"]
+    df_train_sim_low = ewma_prediction(df_train_sim_low, ewma_groups, "sales_transformed", 0.15, 1)
+    df_train_sim_high = ewma_prediction(df_train_sim_high, ewma_groups, "sales_transformed", 0.15, 1)
+
+    categorical_features = [
+        "product id",
+        "product group id",
+        "location id",
+        "type of promotion",
+        "weekday",
+    ]
+    numerical_features = [
+        "normal price",
+        "sales area", 
+        "sales price",
+        "day in month",
+        "day in year",
+        "past sales",
+    ]
+
+    categorical_features_sim_low = categorical_features
+    categorical_features_sim_high = categorical_features
+
+    numerical_features_sim_low = numerical_features
+    numerical_features_sim_high = numerical_features
+
+    num_max_sim_low = df_train_sim_low[numerical_features_sim_low].abs().max()
+    num_max_sim_high = df_train_sim_high[numerical_features_sim_high].abs().max()
+
+    features_sim_low = categorical_features_sim_low + numerical_features_sim_low
+    features_sim_high = categorical_features_sim_high + numerical_features_sim_high
 
     features = features_sim_low + features_sim_high
 
@@ -227,8 +243,11 @@ def main(args):
     df_test_results_sim_low = pd.read_parquet("test_results.parquet.gzip")
     df_test_results_sim_high = pd.read_parquet("test_results_high.parquet.gzip")
 
-    (df_test_sim_low, _, _, _, _) = data_preparation(df_test_sim_low)
-    (df_test_sim_high, _, _, _, _) = data_preparation(df_test_sim_high)
+    df_test_sim_low = data_preparation(df_test_sim_low)
+    df_test_sim_high = data_preparation(df_test_sim_high)
+
+    df_test_sim_low = ewma_merge(df_test_sim_low, df_train_sim_low, "past sales", ewma_groups)
+    df_test_sim_high = ewma_merge(df_test_sim_high, df_train_sim_high, "past sales", ewma_groups)
 
     df_test_sim_low[numerical_features_sim_low] = df_test_sim_low[numerical_features_sim_low] / num_max_sim_low
     features_embeds_test_sim_low = get_column_embeddings(

@@ -241,8 +241,8 @@ def get_data_bicycles_count():
             value_name="bicycles count"
         )
 
-        # df['weekday'] = pd.to_datetime(df['Date']).dt.dayofweek
-        df['weekday'] = pd.to_datetime(df['Date']).dt.day_name()
+        df['date'] = pd.to_datetime(df['Date'])
+        df['weekday'] = df['date'].dt.day_name()
 
         return df
 
@@ -351,13 +351,14 @@ def main(pretrained):
 
     df_val_store_sales = predict(model, DataLoader(val_dataset_store_sales, batch_size=32), df_val_store_sales)
     evaluation(df_val_store_sales["target"], df_val_store_sales["yhat"])
-    plot_timeseries(df_val_store_sales, "val", True)
+    plot_timeseries(df_val_store_sales, "store_sales", True)
 
     df_val_house_prices = predict(model, DataLoader(val_dataset_house_prices, batch_size=32), df_val_house_prices)
     evaluation(df_val_house_prices["target"], df_val_house_prices["yhat"])
 
     df_val_bicycles_count = predict(model, DataLoader(val_dataset_bicycles_count, batch_size=32), df_val_bicycles_count)
     evaluation(df_val_bicycles_count["target"], df_val_bicycles_count["yhat"])
+    plot_timeseries(df_val_bicycles_count, "bicycles_count", True)
 
     embed()
 
