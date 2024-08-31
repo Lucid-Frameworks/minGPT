@@ -59,22 +59,22 @@ def predict(model, dataloader, df):
     return df
 
 
-def ewma_prediction(df, group_cols, col, alpha, horizon):
-    df.sort_values(["DATE"], inplace=True)
-    df_grouped = df.groupby(group_cols, group_keys=False)
-    df["past sales"] = df_grouped[col].apply(lambda x: x.shift(horizon).ewm(alpha=alpha, ignore_na=True).mean())
-    return df
+# def ewma_prediction(df, group_cols, col, alpha, horizon):
+#     df.sort_values(["DATE"], inplace=True)
+#     df_grouped = df.groupby(group_cols, group_keys=False)
+#     df["past sales"] = df_grouped[col].apply(lambda x: x.shift(horizon).ewm(alpha=alpha, ignore_na=True).mean())
+#     return df
 
 
-def ewma_merge(df_test, df_train, ewma_col, group_cols):
-    def get_latest_ewmas(df):
-        return df.loc[df["DATE"] == df["DATE"].max(), ewma_col]
+# def ewma_merge(df_test, df_train, ewma_col, group_cols):
+#     def get_latest_ewmas(df):
+#         return df.loc[df["DATE"] == df["DATE"].max(), ewma_col]
 
-    df_train_latest_ewma = df_train[["DATE", ewma_col] + group_cols].groupby(group_cols).apply(get_latest_ewmas).reset_index()
+#     df_train_latest_ewma = df_train[["DATE", ewma_col] + group_cols].groupby(group_cols).apply(get_latest_ewmas).reset_index()
 
-    df_test = df_test.merge(df_train_latest_ewma[[ewma_col] + group_cols], on=group_cols, how="left")
+#     df_test = df_test.merge(df_train_latest_ewma[[ewma_col] + group_cols], on=group_cols, how="left")
 
-    return df_test
+#     return df_test
 
 
 def data_preparation(df):
@@ -112,9 +112,9 @@ def main(args):
     df_train_sim_low["sales_transformed"] = np.log(1 + df_train_sim_low["SALES"])
     df_train_sim_high["sales_transformed"] = np.log(1 + df_train_sim_high["SALES"])
 
-    ewma_groups = ["location id", "product id", "weekday"]
-    df_train_sim_low = ewma_prediction(df_train_sim_low, ewma_groups, "sales_transformed", 0.15, 1)
-    df_train_sim_high = ewma_prediction(df_train_sim_high, ewma_groups, "sales_transformed", 0.15, 1)
+    # ewma_groups = ["location id", "product id", "weekday"]
+    # df_train_sim_low = ewma_prediction(df_train_sim_low, ewma_groups, "sales_transformed", 0.15, 1)
+    # df_train_sim_high = ewma_prediction(df_train_sim_high, ewma_groups, "sales_transformed", 0.15, 1)
 
     categorical_features = [
         "product id",
@@ -129,7 +129,7 @@ def main(args):
         "sales price",
         "day in month",
         "day in year",
-        "past sales",
+        # "past sales",
     ]
 
     categorical_features_sim_low = categorical_features
@@ -246,8 +246,8 @@ def main(args):
     df_test_sim_low = data_preparation(df_test_sim_low)
     df_test_sim_high = data_preparation(df_test_sim_high)
 
-    df_test_sim_low = ewma_merge(df_test_sim_low, df_train_sim_low, "past sales", ewma_groups)
-    df_test_sim_high = ewma_merge(df_test_sim_high, df_train_sim_high, "past sales", ewma_groups)
+    # df_test_sim_low = ewma_merge(df_test_sim_low, df_train_sim_low, "past sales", ewma_groups)
+    # df_test_sim_high = ewma_merge(df_test_sim_high, df_train_sim_high, "past sales", ewma_groups)
 
     df_test_sim_low[numerical_features_sim_low] = df_test_sim_low[numerical_features_sim_low] / num_max_sim_low
     features_embeds_test_sim_low = get_column_embeddings(

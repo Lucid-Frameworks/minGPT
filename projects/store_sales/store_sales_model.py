@@ -115,7 +115,7 @@ def main(test, pretrained):
 
     # take just a small data set for testing
     df_train_full = df_train_full[df_train_full["date"] >= "2017-05-01"].reset_index(drop=True)
-    df_train_full = df_train_full[(df_train_full["store_nbr"].isin([1, 2, 3])) & (df_train_full["family"].isin(["LIQUOR,WINE,BEER", "EGGS", "MEATS"]))].reset_index(drop=True)
+    # df_train_full = df_train_full[(df_train_full["store_nbr"].isin([1, 2, 3])) & (df_train_full["family"].isin(["LIQUOR,WINE,BEER", "EGGS", "MEATS"]))].reset_index(drop=True)
 
     colname_dict = {
         "store_nbr": "store",
@@ -228,7 +228,10 @@ def main(test, pretrained):
         evaluation(df_test["sales"], df_test["yhat"])
         plot_timeseries(df_test, "val", True)
         for pg in df_test["product group"].unique():
-            plot_timeseries(df_test[df_test["product group"] == pg], pg + "_val", True)
+            if pg != "BREAD/BAKERY":
+                plot_timeseries(df_test[df_test["product group"] == pg], pg + "_val", True)
+            else:
+                plot_timeseries(df_test[df_test["product group"] == pg], "BREAD_BAKERY_val", True)
 
     embed()
 

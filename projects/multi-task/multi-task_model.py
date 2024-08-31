@@ -110,7 +110,7 @@ def get_data_store_sales():
     df_train_full = get_events(df_train_full)
 
     # take just a small data set for testing
-    df_train_full = df_train_full[df_train_full["date"] >= "2017-05-01"].reset_index(drop=True)
+    df_train_full = df_train_full[df_train_full["date"] >= "2016-11-01"].reset_index(drop=True)
     df_train_full = df_train_full[(df_train_full["store_nbr"].isin([1, 2, 3])) & (df_train_full["family"].isin(["LIQUOR,WINE,BEER", "EGGS", "MEATS"]))].reset_index(drop=True)
 
     colname_dict = {
@@ -277,6 +277,9 @@ def get_data_simulated_demand():
     df_test_results = pd.read_parquet("../demand-forecasting-simulated/test_results.parquet.gzip")
     df_test = df_test.merge(df_test_results, on=['P_ID', 'L_ID', 'DATE'])
 
+    # take just a small data set for testing
+    df_train = df_train[df_train["DATE"] >= "2021-10-01"].reset_index(drop=True)
+
     def data_preparation(df):
         df.rename(
             columns={
@@ -304,9 +307,9 @@ def get_data_simulated_demand():
     df_train["target"] = np.log(1 + df_train["SALES"])
     df_test["target"] = df_test["SALES"]
 
-    ewma_groups = ["location id", "product id", "weekday"]
-    df_train = ewma_prediction(df_train, ewma_groups, "target", 0.15, 1)
-    df_test = ewma_merge(df_test, df_train, "past sales", ewma_groups)
+    # ewma_groups = ["location id", "product id", "weekday"]
+    # df_train = ewma_prediction(df_train, ewma_groups, "target", 0.15, 1)
+    # df_test = ewma_merge(df_test, df_train, "past sales", ewma_groups)
 
     categorical_features = [
         "product id",
@@ -321,7 +324,7 @@ def get_data_simulated_demand():
         "sales price",
         "day in month",
         "day in year",
-        "past sales",
+        # "past sales",
     ]
 
     features = categorical_features + numerical_features
@@ -341,6 +344,11 @@ def main(pretrained):
     df_train_house_prices, df_val_house_prices, features_house_prices, categorical_features_house_prices, numerical_features_house_prices = get_data_house_prices()
     df_train_bicycles_count, df_val_bicycles_count, features_bicycles_count, categorical_features_bicycles_count, numerical_features_bicycles_count = get_data_bicycles_count()
     df_train_simulated_demand, df_val_simulated_demand, features_simulated_demand, categorical_features_simulated_demand, numerical_features_simulated_demand = get_data_simulated_demand()
+
+    print("train samples store sales: ", len(df_train_store_sales))
+    print("train samples house prices: ", len(df_train_house_prices))
+    print("train samples bicycles count: ", len(df_train_bicycles_count))
+    print("train samples simulated demand: ", len(df_train_simulated_demand))
 
     max_features = max(len(features_store_sales), len(features_house_prices), len(features_bicycles_count), len(features_simulated_demand))
     features = features_store_sales + features_house_prices + features_bicycles_count + features_simulated_demand
