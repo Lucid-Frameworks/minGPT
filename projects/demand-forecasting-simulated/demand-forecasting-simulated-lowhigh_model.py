@@ -268,18 +268,18 @@ def main(args):
 
     test_dataset_sim_low = TensorDataset(
         features_embeds_test_sim_low,
-        torch.tensor(df_test_results_sim_low["SALES"].iloc[:1000].tolist(), dtype=torch.float32),
+        torch.tensor(df_test_results_sim_low["SALES"].tolist(), dtype=torch.float32),
     )
 
     test_dataset_sim_high = TensorDataset(
         features_embeds_test_sim_high,
-        torch.tensor(df_test_results_sim_high["SALES"].iloc[:1000].tolist(), dtype=torch.float32),
+        torch.tensor(df_test_results_sim_high["SALES"].tolist(), dtype=torch.float32),
     )
 
     df_test_sim_low = predict(
         model, DataLoader(test_dataset_sim_low, batch_size=32), df_test_sim_low
     )
-    evaluation(df_test_results_sim_low["SALES"].iloc[:1000], df_test_sim_low["yhat"])
+    evaluation(df_test_results_sim_low["SALES"], df_test_sim_low["yhat"])
     df_test_sim_low = df_test_sim_low.merge(df_test_results_sim_low, left_on=['product id', 'location id', 'DATE'], right_on=['P_ID', 'L_ID', 'DATE'])
     plot_timeseries(df_test_sim_low, "val_low", True)
     for pg in df_test_sim_low["product group id"].unique():
@@ -288,7 +288,7 @@ def main(args):
     df_test_sim_high = predict(
         model, DataLoader(test_dataset_sim_high, batch_size=32), df_test_sim_high
     )
-    evaluation(df_test_results_sim_high["SALES"].iloc[:1000], df_test_sim_high["yhat"])
+    evaluation(df_test_results_sim_high["SALES"], df_test_sim_high["yhat"])
     df_test_sim_high = df_test_sim_high.merge(df_test_results_sim_high, left_on=['product id', 'location id', 'DATE'], right_on=['P_ID', 'L_ID', 'DATE'])
     plot_timeseries(df_test_sim_high, "val_high", True)
     for pg in df_test_sim_high["product group id"].unique():
