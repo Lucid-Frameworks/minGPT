@@ -41,11 +41,9 @@ def get_column_embeddings(df, target_name, categorical_features, numerical_featu
                 with torch.no_grad():
                     cat_embed_dict[category] = model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu()
 
-            cat_embeds = torch.empty(1, 768)
-            for i in range(len(df)):            
-                cat_embeds = torch.cat((cat_embeds, cat_embed_dict[df[col].iloc[i]]))
+            cat_embeds = torch.stack([cat_embed_dict[val] for val in df[col]])
 
-            col_embeds = colname_embed + cat_embeds[1:]
+            col_embeds = colname_embed + cat_embeds.squeeze(1)
         else:
             col_values = torch.tensor(df[col].values, dtype=torch.float32).unsqueeze(1)
 
@@ -58,10 +56,11 @@ def get_column_embeddings(df, target_name, categorical_features, numerical_featu
                 input_ids = tokenizer(str(0), return_tensors="pt")
                 with torch.no_grad():
                     cat0_embed = model(**input_ids.to(device)).last_hidden_state.mean(dim=1).cpu()
+
+                mask = (df[col] == 0).values
                 cat_embeds = torch.zeros(len(df), 768)
-                for i in range(len(df)):
-                    if df[col].iloc[i] == 0:
-                        cat_embeds[i, :] = cat0_embed
+                cat_embeds[mask, :] = cat0_embed
+
                 col_embeds = col_embeds + cat_embeds
             elif "simple":
                 col_embeds = colname_embed * col_values
