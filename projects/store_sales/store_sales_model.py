@@ -183,7 +183,8 @@ def main(test, pretrained):
     # create a Trainer object
     train_config = Trainer.get_default_config()
     train_config.max_iters = 1000000
-    train_config.epochs = 100
+    train_config.epochs = 186
+    # train_config.epochs = 94
     train_config.num_workers = 0
     train_config.batch_size = 64
     train_config.observe_train_loss = True

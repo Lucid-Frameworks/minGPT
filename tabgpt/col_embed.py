@@ -83,7 +83,7 @@ def get_column_embeddings(df, target_name, categorical_features, numerical_featu
     features_embeds += features_embeds_wo_pos
 
     if number_of_features < number_of_cols:
-        padding_features_embeds = torch.empty(len(df), number_of_cols - number_of_features, 768)
+        padding_features_embeds = torch.ones(len(df), number_of_cols - number_of_features, 768)
         features_embeds = torch.cat((features_embeds, padding_features_embeds), dim=1)
 
     return features_embeds
