@@ -146,7 +146,7 @@ def main(test, pretrained):
         df_test = df_test.merge(df_oil, on="date", how="left")
         df_test = seasonality_features(df_test)
         df_test = get_events(df_test)
-        df_test = df_test[(df_test["store_nbr"].isin([1, 2, 3])) & (df_test["family"].isin(["LIQUOR,WINE,BEER", "EGGS", "MEATS"]))].reset_index()
+        # df_test = df_test[(df_test["store_nbr"].isin([1, 2, 3])) & (df_test["family"].isin(["LIQUOR,WINE,BEER", "EGGS", "MEATS"]))].reset_index()
         df_test.rename(columns=colname_dict, inplace=True)
     else:
         df_train = df_train_full[df_train_full["date"] <= "2017-07-30"].reset_index(drop=True)
@@ -183,7 +183,7 @@ def main(test, pretrained):
     # create a Trainer object
     train_config = Trainer.get_default_config()
     train_config.max_iters = 1000000
-    train_config.epochs = 160
+    train_config.epochs = 100
     train_config.num_workers = 0
     train_config.batch_size = 64
     train_config.observe_train_loss = True
@@ -206,7 +206,10 @@ def main(test, pretrained):
     evaluation(df_train["sales"], df_train["yhat"])
     plot_timeseries(df_train, "train", True)
     for pg in df_train["product group"].unique():
-        plot_timeseries(df_train[df_train["product group"] == pg], pg + "_train", True)
+        if pg != "BREAD/BAKERY":
+            plot_timeseries(df_train[df_train["product group"] == pg], pg + "_train", True)
+        else:
+            plot_timeseries(df_train[df_train["product group"] == pg], "BREAD_BAKERY_train", True)
 
     features_embeds_test = get_column_embeddings(df_test, "store sales", categorical_features, numerical_features, number_of_cols=len(features))
 
