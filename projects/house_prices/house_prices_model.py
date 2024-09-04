@@ -50,6 +50,7 @@ def main(test, pretrained, enrich):
     # use data from Kaggle competition https://www.kaggle.com/competitions/house-prices-advanced-regression-techniques
     df_train_full = pd.read_csv("train.csv")
 
+    # used in individual comparison for cross-training of concept paper
     # important_cols = ["OverallQual",
     #                   "GarageCars",
     #                   "ExterQual",
@@ -119,8 +120,8 @@ def main(test, pretrained, enrich):
     # create a Trainer object
     train_config = Trainer.get_default_config()
     train_config.max_iters = 1000000
-    train_config.epochs = 253
-    # train_config.epochs = 160
+    train_config.epochs = 160 # used in single training of concept paper
+    # train_config.epochs = 88 # used in individual comparison for cross-training of concept paper
     train_config.num_workers = 0
     train_config.batch_size = 64
     train_config.observe_train_loss = True

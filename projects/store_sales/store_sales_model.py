@@ -114,7 +114,10 @@ def main(test, pretrained):
     df_train_full["sales_transformed"] = np.log(1 + df_train_full["sales"])
 
     # take just a small data set for testing
+    # used single training of concept paper:
     df_train_full = df_train_full[df_train_full["date"] >= "2017-05-01"].reset_index(drop=True)
+    # used in individual comparison for cross-training of concept paper:
+    # df_train_full = df_train_full[df_train_full["date"] >= "2016-11-01"].reset_index(drop=True)
     # df_train_full = df_train_full[(df_train_full["store_nbr"].isin([1, 2, 3])) & (df_train_full["family"].isin(["LIQUOR,WINE,BEER", "EGGS", "MEATS"]))].reset_index(drop=True)
 
     colname_dict = {
@@ -183,8 +186,8 @@ def main(test, pretrained):
     # create a Trainer object
     train_config = Trainer.get_default_config()
     train_config.max_iters = 1000000
-    train_config.epochs = 186
-    # train_config.epochs = 94
+    train_config.epochs = 94 # used in single training of concept paper
+    # train_config.epochs = 89 # used in individual comparison for cross-training of concept paper
     train_config.num_workers = 0
     train_config.batch_size = 64
     train_config.observe_train_loss = True
