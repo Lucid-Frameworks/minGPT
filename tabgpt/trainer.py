@@ -65,6 +65,7 @@ class Trainer:
 
         # setup the optimizer
         self.optimizer = model.configure_optimizers(config)
+        scheduler = ReduceLROnPlateauBest(self.optimizer, patience=20)
 
         # setup the dataloader
         train_loader = DataLoader(
@@ -123,3 +124,30 @@ class Trainer:
                 self.aggregated_loss /= self.iter_in_epoch
                 self.epoch = epoch + 1
                 self.trigger_callbacks('on_epoch_end')
+                scheduler.step(self.aggregated_loss)
+
+
+class ReduceLROnPlateauBest(torch.optim.lr_scheduler.ReduceLROnPlateau):
+    def step(self, metrics):
+        current = float(metrics)
+        epoch = self.last_epoch + 1
+        self.last_epoch = epoch
+
+        self.num_bad_epochs_before = self.num_bad_epochs
+
+        if self.is_better(current, self.best):
+            self.best = current
+            self.num_bad_epochs = 0
+        else:
+            self.num_bad_epochs += 1
+
+        if self.in_cooldown:
+            self.cooldown_counter -= 1
+            self.num_bad_epochs = 0  # ignore any bad epochs in cooldown
+
+        if (self.num_bad_epochs_before > self.patience) and (self.best == current):
+            self._reduce_lr(epoch)
+            self.cooldown_counter = self.cooldown
+            self.num_bad_epochs = 0
+
+        self._last_lr = [group["lr"] for group in self.optimizer.param_groups]
