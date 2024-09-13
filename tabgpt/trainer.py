@@ -124,7 +124,7 @@ class Trainer:
                 self.aggregated_loss /= self.iter_in_epoch
                 self.epoch = epoch + 1
                 self.trigger_callbacks('on_epoch_end')
-                scheduler.step(self.aggregated_loss)
+                # scheduler.step(self.aggregated_loss)
 
 
 class ReduceLROnPlateauBest(torch.optim.lr_scheduler.ReduceLROnPlateau):

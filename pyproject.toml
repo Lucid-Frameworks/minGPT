@@ -10,14 +10,18 @@ ipython = "^8.27.0"
 scikit-learn = "^1.5.1"
 pandas = "^2.2.2"
 torch = {version = "2.4.0", source = "torch_cu121"}
+#torch = {version = "1.13.0", source = "torch_cu116"}
 transformers = "^4.44.2"
 matplotlib = "^3.9.2"
 pyarrow = "^17.0.0"
 openpyxl = "^3.1.5"
+numpy = "^1.26.4"
 
 [[tool.poetry.source]]
 name = "torch_cu121"
 url = "https://download.pytorch.org/whl/cu121"
+#name = "torch_cu116"
+#url = "https://download.pytorch.org/whl/cu116"
 priority = "explicit"
 
 [build-system]
