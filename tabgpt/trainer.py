@@ -65,7 +65,7 @@ class Trainer:
 
         # setup the optimizer
         self.optimizer = model.configure_optimizers(config)
-        scheduler = ReduceLROnPlateauBest(self.optimizer, patience=20)
+        scheduler = ReduceLROnPlateauBest(self.optimizer, factor=0.5, patience=20)
 
         # setup the dataloader
         train_loader = DataLoader(
