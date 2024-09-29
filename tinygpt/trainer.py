@@ -8,7 +8,7 @@ from collections import defaultdict
 
 from tinygrad.tensor import Tensor
 
-from tinygpt.tinyloader import DataLoader
+from tinygpt.tinyloader import TinyDataLoader
 from tinygpt import tinyutils
 from tinygpt.utils import CfgNode as CN
 
@@ -57,14 +57,7 @@ class Trainer:
         self.optimizer = model.configure_optimizers(config)
 
         # setup the dataloader
-        train_loader = DataLoader(
-            self.train_dataset,
-            sampler=DataLoader.RandomSampler(self.train_dataset, replacement=True, num_samples=int(1e10)),
-            shuffle=False,
-            pin_memory=True,
-            batch_size=config.batch_size,
-            num_workers=config.num_workers,
-        )
+        train_loader = TinyDataLoader(self.train_dataset, batch_size=config.batch_size)
 
         t = Tensor.train()
         t.__enter__()
@@ -80,8 +73,6 @@ class Trainer:
                 data_iter = iter(train_loader)
                 batch = next(data_iter)
             x, y = batch
-            x = Tensor(x.numpy())
-            y = Tensor(y.numpy())
 
             # forward the model
             logits, self.loss = model(x, y)

@@ -9,7 +9,7 @@ import json
 import tinygrad
 import torch
 
-from tinygpt.tinyloader import DataLoader
+from tinygpt.tinyloader import TinyDataLoader
 from tinygpt.model import GPT
 from tinygpt.trainer import Trainer
 from tinygpt.utils import set_seed, setup_logging, CfgNode as CN
@@ -153,7 +153,7 @@ if __name__ == '__main__':
         mistakes_printed_already = 0
         factors = torch.tensor([[10**i for i in range(ndigit+1)][::-1]])
         # factors = tinygrad.tensor.Tensor([[10**i for i in range(ndigit+1)][::-1]]).to(tmp_device)
-        loader = DataLoader(dataset, batch_size=100, num_workers=0, drop_last=False)
+        loader = TinyDataLoader(dataset, batch_size=100)
         for b, (x, y) in enumerate(loader):
             # isolate the first two digits of the input sequence alone
             d1d2 = x[:, :ndigit*2]
