@@ -6,13 +6,15 @@ import os
 import sys
 import json
 
+import random
 import tinygrad
-import torch
 
+from tinygrad import dtypes
 from tinygpt.tinyloader import TinyDataLoader
 from tinygpt.model import GPT
 from tinygpt.trainer import Trainer
 from tinygpt.utils import set_seed, setup_logging, CfgNode as CN
+from tinygrad.tensor import Tensor
 
 # -----------------------------------------------------------------------------
 
@@ -79,10 +81,10 @@ class AdditionDataset:
         ndigit = self.config.ndigit
         assert ndigit <= 3, "the lines below would be very memory inefficient, in future maybe refactor to support"
         num = (10**ndigit)**2 # total number of possible addition problems with ndigit numbers
-        rng = torch.Generator()
-        rng.manual_seed(1337)
-        perm = torch.randperm(num, generator=rng)
-        # perm = tinygrad.tensor.Tensor(list(range(num))) # to shuffle
+        random.seed(1337)
+        perm = list(range(num))
+        random.shuffle(perm)
+        perm = tinygrad.tensor.Tensor(perm)
         num_test = min(int(num*0.2), 500) # 20% of the whole dataset, or only up to 500
         self.ixes = perm[:num_test] if split == 'test' else perm[num_test:]
 
@@ -115,10 +117,8 @@ class AdditionDataset:
         render = astr + bstr + cstr
         dix = [int(s) for s in render] # convert each character to its token index
         # x will be input to GPT and y will be the associated expected outputs
-        # x = tinygrad.tensor.Tensor(dix[:-1], dtype=tinygrad.dtypes.long)
-        # y = tinygrad.tensor.Tensor(dix[1:], dtype=tinygrad.dtypes.long) # predict the next token in the sequence
-        x = torch.tensor(dix[:-1], dtype=torch.long)
-        y = torch.tensor(dix[1:], dtype=torch.long) # predict the next token in the sequence
+        x = Tensor(dix[:-1], dtype=dtypes.long)
+        y = Tensor(dix[1:], dtype=dtypes.long) # predict the next token in the sequence
         y[:ndigit*2-1] = -1 # we will only train in the output locations. -1 will mask loss to zero
         return x, y
 
