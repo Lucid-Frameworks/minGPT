@@ -226,7 +226,7 @@ def get_encoder():
     and handles caching of "database" files.
     """
     home_dir = os.path.expanduser('~')
-    cache_dir = os.path.join(home_dir, '.cache', 'mingpt')
+    cache_dir = os.path.join(home_dir, '.cache', 'tinygpt')
     os.makedirs(cache_dir, exist_ok=True)
 
     # load encoder.json that has the raw mappings from token -> bpe index

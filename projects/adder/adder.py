@@ -6,13 +6,15 @@ import os
 import sys
 import json
 
-import torch
-from torch.utils.data import Dataset
-from torch.utils.data.dataloader import DataLoader
+import random
+import tinygrad
 
-from mingpt.model import GPT
-from mingpt.trainer import Trainer
-from mingpt.utils import set_seed, setup_logging, CfgNode as CN
+from tinygrad import dtypes
+from tinygpt.tinyloader import TinyDataLoader
+from tinygpt.model import GPT
+from tinygpt.trainer import Trainer
+from tinygpt.utils import set_seed, setup_logging, CfgNode as CN
+from tinygrad.tensor import Tensor
 
 # -----------------------------------------------------------------------------
 
@@ -40,7 +42,7 @@ def get_config():
 
 # -----------------------------------------------------------------------------
 
-class AdditionDataset(Dataset):
+class AdditionDataset:
     """
     Creates n-digit addition problems. For example, if n=2, then an example
     addition problem would be to add 85 + 50 = 135. This problem would be
@@ -79,9 +81,10 @@ class AdditionDataset(Dataset):
         ndigit = self.config.ndigit
         assert ndigit <= 3, "the lines below would be very memory inefficient, in future maybe refactor to support"
         num = (10**ndigit)**2 # total number of possible addition problems with ndigit numbers
-        rng = torch.Generator()
-        rng.manual_seed(1337)
-        perm = torch.randperm(num, generator=rng)
+        random.seed(1337)
+        perm = list(range(num))
+        random.shuffle(perm)
+        perm = tinygrad.tensor.Tensor(perm)
         num_test = min(int(num*0.2), 500) # 20% of the whole dataset, or only up to 500
         self.ixes = perm[:num_test] if split == 'test' else perm[num_test:]
 
@@ -95,6 +98,7 @@ class AdditionDataset(Dataset):
         return 3*self.config.ndigit + 1 - 1
 
     def __len__(self):
+        # return self.ixes.numel()
         return self.ixes.nelement()
 
     def __getitem__(self, idx):
@@ -113,8 +117,8 @@ class AdditionDataset(Dataset):
         render = astr + bstr + cstr
         dix = [int(s) for s in render] # convert each character to its token index
         # x will be input to GPT and y will be the associated expected outputs
-        x = torch.tensor(dix[:-1], dtype=torch.long)
-        y = torch.tensor(dix[1:], dtype=torch.long) # predict the next token in the sequence
+        x = Tensor(dix[:-1], dtype=dtypes.long)
+        y = Tensor(dix[1:], dtype=dtypes.long) # predict the next token in the sequence
         y[:ndigit*2-1] = -1 # we will only train in the output locations. -1 will mask loss to zero
         return x, y
 
@@ -147,10 +151,10 @@ if __name__ == '__main__':
         ndigit = config.data.ndigit
         results = []
         mistakes_printed_already = 0
-        factors = torch.tensor([[10**i for i in range(ndigit+1)][::-1]]).to(trainer.device)
-        loader = DataLoader(dataset, batch_size=100, num_workers=0, drop_last=False)
+        factors = torch.tensor([[10**i for i in range(ndigit+1)][::-1]])
+        # factors = tinygrad.tensor.Tensor([[10**i for i in range(ndigit+1)][::-1]]).to(tmp_device)
+        loader = TinyDataLoader(dataset, batch_size=100)
         for b, (x, y) in enumerate(loader):
-            x = x.to(trainer.device)
             # isolate the first two digits of the input sequence alone
             d1d2 = x[:, :ndigit*2]
             # let the model sample the rest of the sequence
@@ -172,6 +176,7 @@ if __name__ == '__main__':
                     print("GPT claims that %d + %d = %d but gt is %d" % (d1i[i], d2i[i], d3i_pred[i], d3i_gt[i]))
             if max_batches is not None and b+1 >= max_batches:
                 break
+        # rt = tinygrad.tensor.Tensor(results, dtype=tinygrad.dtypes.float)
         rt = torch.tensor(results, dtype=torch.float)
         print("%s final score: %d/%d = %.2f%% correct" % (split, rt.sum(), len(results), 100*rt.mean()))
         return rt.sum()
@@ -184,22 +189,22 @@ if __name__ == '__main__':
         if trainer.iter_num % 10 == 0:
             print(f"iter_dt {trainer.iter_dt * 1000:.2f}ms; iter {trainer.iter_num}: train loss {trainer.loss.item():.5f}")
 
-        if trainer.iter_num % 500 == 0:
-            # evaluate both the train and test score
-            train_max_batches = {1: None, 2: None, 3: 5}[config.data.ndigit] # if ndigit=2 we can afford the whole train set, ow no
-            model.eval()
-            with torch.no_grad():
-                train_score = eval_split(trainer, 'train', max_batches=train_max_batches)
-                test_score  = eval_split(trainer, 'test',  max_batches=None)
-            score = train_score + test_score
-            # save the model if this is the best score we've seen so far
-            if score > top_score:
-                top_score = score
-                print(f"saving model with new top score of {score}")
-                ckpt_path = os.path.join(config.system.work_dir, "model.pt")
-                torch.save(model.state_dict(), ckpt_path)
-            # revert model to training mode
-            model.train()
+        # if trainer.iter_num % 500 == 0:
+        #     # evaluate both the train and test score
+        #     train_max_batches = {1: None, 2: None, 3: 5}[config.data.ndigit] # if ndigit=2 we can afford the whole train set, ow no
+        #     # model.eval()
+        #     with torch.no_grad():
+        #         train_score = eval_split(trainer, 'train', max_batches=train_max_batches)
+        #         test_score  = eval_split(trainer, 'test',  max_batches=None)
+        #     score = train_score + test_score
+        #     # save the model if this is the best score we've seen so far
+        #     if score > top_score:
+        #         top_score = score
+        #         print(f"saving model with new top score of {score}")
+        #         ckpt_path = os.path.join(config.system.work_dir, "model.pt")
+        #         # torch.save(model.state_dict(), ckpt_path)
+        #     # revert model to training mode
+        #     model.train()
 
     trainer.set_callback('on_batch_end', batch_end_callback)
 
