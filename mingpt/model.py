@@ -118,6 +118,13 @@ class GPT(nn.Module):
         assert config.block_size is not None
         self.block_size = config.block_size
 
+        # New attributes for storing activations and logits
+        self.layer_activations = {}
+        self.last_token_logits = None
+        self.patch_layer = None
+        self.patch_position = None
+        self.patch_embedding = None
+
         type_given = config.model_type is not None
         params_given = all([config.n_layer is not None, config.n_head is not None, config.n_embd is not None])
         assert type_given ^ params_given # exactly one of these (XOR)
@@ -197,7 +204,7 @@ class GPT(nn.Module):
         transposed = ['attn.c_attn.weight', 'attn.c_proj.weight', 'mlp.c_fc.weight', 'mlp.c_proj.weight']
         # basically the openai checkpoints use a "Conv1D" module, but we only want to use a vanilla nn.Linear.
         # this means that we have to transpose these weights when we import them
-        assert len(keys) == len(sd)
+        assert len(keys) == len([k for k in sd if not k.endswith(".attn.bias")]) # Modified by the professor
         for k in keys:
             if any(k.endswith(w) for w in transposed):
                 # special treatment for the Conv1D weights we need to transpose
@@ -257,20 +264,41 @@ class GPT(nn.Module):
         optimizer = torch.optim.AdamW(optim_groups, lr=train_config.learning_rate, betas=train_config.betas)
         return optimizer
 
-    def forward(self, idx, targets=None):
+    def forward(self, idx, targets=None, store_activations=False, patch_params=None):
         device = idx.device
         b, t = idx.size()
         assert t <= self.block_size, f"Cannot forward sequence of length {t}, block size is only {self.block_size}"
-        pos = torch.arange(0, t, dtype=torch.long, device=device).unsqueeze(0) # shape (1, t)
+        pos = torch.arange(0, t, dtype=torch.long, device=device).unsqueeze(0)
 
         # forward the GPT model itself
-        tok_emb = self.transformer.wte(idx) # token embeddings of shape (b, t, n_embd)
-        pos_emb = self.transformer.wpe(pos) # position embeddings of shape (1, t, n_embd)
+        tok_emb = self.transformer.wte(idx)
+        pos_emb = self.transformer.wpe(pos)
         x = self.transformer.drop(tok_emb + pos_emb)
-        for block in self.transformer.h:
+
+        # Clear previous activations if storing new ones
+        if store_activations:
+            self.layer_activations = {}
+            self.layer_activations['input'] = x.detach().clone()
+
+        # Process through transformer blocks
+        for i, block in enumerate(self.transformer.h):
+            # Apply patching if specified
+            if patch_params is not None:
+                patch_layer, patch_pos, patch_value = patch_params
+                if i == patch_layer:
+                    x[:, patch_pos, :] = patch_value
+
             x = block(x)
+            
+            # Store activations if requested
+            if store_activations:
+                self.layer_activations[f'layer_{i}'] = x.detach().clone()
+
         x = self.transformer.ln_f(x)
         logits = self.lm_head(x)
+
+        # Store logits for the last token
+        self.last_token_logits = logits[:, -1, :].detach().clone()
 
         # if we are given some desired targets also calculate the loss
         loss = None

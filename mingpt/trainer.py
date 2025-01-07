@@ -37,7 +37,7 @@ class Trainer:
 
         # determine the device we'll train on
         if config.device == 'auto':
-            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            self.device = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
         else:
             self.device = config.device
         self.model = self.model.to(self.device)
