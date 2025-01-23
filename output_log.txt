@@ -1,0 +1,78 @@
+Running generate_en.py...
+QSocketNotifier: Can only be used with threads started with QThread
+Running on device: cpu
+number of parameters: 354.82M
+Detokenized input as strings: The/ cat/ sat/ on/ the/ mat/ while/ the/ dog/ bark/ed/ loudly/,/ and/ the/ sun/ shone/ brightly/ in/ the/ sky/.
+Detokenized input as strings: The/ cat/ sat/ on/ the/ mat/ while/ the/ dog/ bark/ed/ quietly/,/ and/ the/ sun/ shone/ brightly/ in/ the/ sky/.
+
+Probabilities for specific tokens in clean input:
+{'cat': 2.7960513193647785e-07, 'dog': 4.111164173536963e-07, 'barked': 3.37793926163954e-06, 'loudly': 4.7034048957783625e-06, 'quietly': 1.214131765570059e-06}
+Number of layers: 24
+Sequence length: 22
+Processing token: cat
+Processing token: dog
+Processing token: barked
+Processing token: loudly
+Processing token: quietly
+
+Probabilities for specific tokens in corrupted input:
+{'cat': 1.527666455558574e-07, 'dog': 4.179754498068178e-08, 'barked': 2.3538700872904883e-06, 'loudly': 4.369664690528907e-06, 'quietly': 3.267240889615053e-06}
+Finished running generate_en.py
+----------------------------------------
+Running generate_fr.py...
+QSocketNotifier: Can only be used with threads started with QThread
+Running on device: cpu
+number of parameters: 354.82M
+Detokenized input as strings: Le/ chat/ s/'/est/ ass/is/ sur/ le/ tap/is/ p/endant/ que/ le/ ch/ien/ ab/oy/ait/ bru/y/am/ment/,/ et/ le/ sole/il/ brill/ait/ d/ans/ le/ c/iel/.
+Detokenized input as strings: Le/ chat/ s/'/est/ ass/is/ sur/ le/ tap/is/ p/endant/ que/ le/ ch/ien/ ab/oy/ait/ calm/ement/,/ et/ le/ sole/il/ brill/ait/ d/ans/ le/ c/iel/.
+
+Probabilities for specific tokens in clean input:
+{'chat': 1.6998312757365852e-09, 'chien': 3.852599750331365e-08, 'aboyait': 5.933766553667397e-07, 'bruyamment': 1.110070209087155e-06, 'calmement': 3.712495431074103e-07}
+Number of layers: 24
+Sequence length: 35
+Processing token: chat
+Processing token: chien
+Processing token: aboyait
+Processing token: bruyamment
+Processing token: calmement
+
+Probabilities for specific tokens in corrupted input:
+{'chat': 9.238990060111973e-06, 'chien': 0.00705796162947081, 'aboyait': 0.003021497388544958, 'bruyamment': 0.032381818039084465, 'calmement': 0.002847120674459802}
+Finished running generate_fr.py
+----------------------------------------
+Running generate_it.py...
+Running on device: cpu
+number of parameters: 354.82M
+Detokenized input as strings: Il/ g/atto/ si/ �/�/ sed/uto/ sul/ t/app/eto/ ment/re/ il/ cane/ ab/ba/ia/va/ rumor/os/ament/e/,/ e/ il/ sole/ splend/eva/ n/el/ c/iel/o/.
+Detokenized input as strings: Il/ g/atto/ si/ �/�/ sed/uto/ sul/ t/app/eto/ ment/re/ il/ cane/ ab/ba/ia/va/ sil/enz/ios/ament/e/,/ e/ il/ sole/ splend/eva/ n/el/ c/iel/o/.
+
+Probabilities for specific tokens in clean input:
+{'gatto': 1.4033828605874987e-06, 'cane': 7.798651858514916e-06, 'abbaiava': 2.081568159617575e-06, 'rumorosamente': 1.1354818658493304e-05, 'silenziosamente': 1.1692253512052275e-05}
+Number of layers: 24
+Sequence length: 37
+Processing token: gatto
+Traceback (most recent call last):
+  File "/home/barbara/Downloads/DSAI/second_year/first_semester_alicante/NLP/minGPT_NLP/generate_it.py", line 107, in <module>
+    patch_params=(layer, pos, clean_activations[f'layer_{layer}'][:, pos, :])
+                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+IndexError: index 36 is out of bounds for dimension 1 with size 36
+Finished running generate_it.py
+----------------------------------------
+Running generate_es.py...
+Running on device: cpu
+number of parameters: 354.82M
+Detokenized input as strings: El/ g/ato/ se/ sent/ó/ en/ la/ al/f/omb/ra/ m/ient/ras/ el/ per/ro/ lad/r/aba/ ru/id/os/ament/e/,/ y/ el/ sol/ brill/aba/ en/ el/ c/iel/o/.
+Detokenized input as strings: El/ g/ato/ se/ sent/ó/ en/ la/ al/f/omb/ra/ m/ient/ras/ el/ per/ro/ lad/r/aba/ sil/en/ci/os/ament/e/,/ y/ el/ sol/ brill/aba/ en/ el/ c/iel/o/.
+
+Probabilities for specific tokens in clean input:
+{'gato': 7.783114241988187e-07, 'perro': 1.8611425787184999e-06, 'ladraba': 2.7513092426545427e-06, 'ruidosamente': 9.291079734907726e-06, 'silenciosamente': 2.5901759713065076e-05}
+Number of layers: 24
+Sequence length: 39
+Processing token: gato
+Traceback (most recent call last):
+  File "/home/barbara/Downloads/DSAI/second_year/first_semester_alicante/NLP/minGPT_NLP/generate_es.py", line 107, in <module>
+    patch_params=(layer, pos, clean_activations[f'layer_{layer}'][:, pos, :])
+                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+IndexError: index 38 is out of bounds for dimension 1 with size 38
+Finished running generate_es.py
+----------------------------------------
