@@ -56,7 +56,7 @@ class AdditionDataset(Dataset):
 
     As one more example, the problem 6 + 39 = 45 would be encoded as:
 
-    "0639054"
+    "0639540"
 
     where you will notice that we are padding with zeros to make sure that we always
     produce strings of the exact same size: n + n + (n + 1). When n=2, this is 7.
